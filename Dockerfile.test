@@ -1,0 +1,57 @@
+# Dockerfile.test — Ubuntu-based integration test environment for helm-env
+# Build context: project root
+# Usage: docker build -f Dockerfile.test -t helm-env-test .
+#        docker run --rm helm-env-test
+
+FROM ubuntu:24.04
+
+# ── System dependencies ────────────────────────────────────────────────────────
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    bash \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── BATS and helpers ──────────────────────────────────────────────────────────
+RUN git clone https://github.com/bats-core/bats-core.git /tmp/bats-core \
+    && /tmp/bats-core/install.sh /usr/local \
+    && rm -rf /tmp/bats-core \
+    && git clone https://github.com/bats-core/bats-support.git /usr/local/lib/bats-support \
+    && git clone https://github.com/bats-core/bats-assert.git /usr/local/lib/bats-assert
+
+
+# ── Go toolchain ───────────────────────────────────────────────────────────────
+ARG GO_VERSION=1.24.4
+RUN set -eux; \
+    ARCH="$(dpkg --print-architecture)"; \
+    case "$ARCH" in \
+    amd64) GOARCH="amd64" ;; \
+    arm64) GOARCH="arm64" ;; \
+    *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+    esac; \
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GOARCH}.tar.gz" \
+    | tar -C /usr/local -xz
+
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# ── Project source ─────────────────────────────────────────────────────────────
+WORKDIR /src
+COPY . .
+
+# ── Build helm-env binary ─────────────────────────────────────────────────────
+ARG VERSION=0.1.0
+RUN go build -ldflags "-X main.Version=${VERSION}" -o /usr/local/bin/helm-env ./cmd/helm-env \
+    && chmod +x /usr/local/bin/helm-env
+
+# ── Runtime environment ────────────────────────────────────────────────────────
+ENV HOME=/root
+ENV HELMENV_ROOT=/root/.helmenv
+
+# Prepend shims directory so the helm shim is found after `helm-env init`
+ENV PATH="/root/.helmenv/shims:/usr/local/bin:/usr/local/go/bin:/usr/bin:/bin"
+
+# ── Entry point ────────────────────────────────────────────────────────────────
+ENTRYPOINT ["/bin/bash", "/src/scripts/run-bats.sh"]
