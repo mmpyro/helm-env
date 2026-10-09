@@ -55,5 +55,25 @@ func TestStatus(t *testing.T) {
 		if !strings.Contains(output, "  0.30.0") {
 			t.Errorf("expected output to contain other versions, got %q", output)
 		}
+		if !strings.Contains(output, "Auto-install:") {
+			t.Errorf("expected output to include Auto-install row, got %q", output)
+		}
+	})
+
+	t.Run("auto-install enabled reflected in status", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HELMENV_ROOT", tmpDir)
+		t.Setenv("HELMENV_AUTO_INSTALL", "yes")
+		if err := os.MkdirAll(filepath.Join(tmpDir, "versions"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		output := captureStdout(t, func() {
+			if err := Status(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		if !strings.Contains(output, "Auto-install:") || !strings.Contains(output, "enabled") {
+			t.Fatalf("expected Auto-install: enabled, got %q", output)
+		}
 	})
 }

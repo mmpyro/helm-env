@@ -30,6 +30,13 @@ func Status() error {
 		binaryPath, _ := config.GetBinaryPath(version)
 		fmt.Fprintf(w, "Binary path:\t%s\n", binaryPath)
 	}
+
+	autoLabel := "disabled"
+	if AutoInstallEnabled(AutoDefault) {
+		autoLabel = "enabled"
+	}
+	fmt.Fprintf(w, "Auto-install:\t%s\n", autoLabel)
+
 	w.Flush()
 
 	versionsDir := filepath.Join(root, "versions")

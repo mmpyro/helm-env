@@ -18,6 +18,7 @@ func TestExec(t *testing.T) {
 	t.Run("fails when version not installed", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HELMENV_ROOT", tmpDir)
+		t.Setenv("HELMENV_AUTO_INSTALL", "")
 		if err := os.MkdirAll(filepath.Join(tmpDir, "versions"), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -25,6 +26,29 @@ func TestExec(t *testing.T) {
 		err := Exec("0.31.0", []string{"version"})
 		if err == nil {
 			t.Fatal("expected error when version not installed")
+		}
+	})
+
+	t.Run("resolves fuzzy version to installed", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HELMENV_ROOT", tmpDir)
+		t.Setenv("HELMENV_AUTO_INSTALL", "")
+		for _, v := range []string{"3.14.0", "3.14.5"} {
+			vdir := filepath.Join(tmpDir, "versions", v)
+			if err := os.MkdirAll(vdir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(vdir, "helm"), []byte("binary"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Use resolveExecVersion directly so we don't actually fork.
+		got, err := resolveExecVersion("3.14", AutoDefault)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "3.14.5" {
+			t.Fatalf("got %q, want 3.14.5", got)
 		}
 	})
 
