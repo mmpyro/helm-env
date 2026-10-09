@@ -23,7 +23,7 @@ func installFakeVersion(t *testing.T, root, v string) {
 func TestWhich(t *testing.T) {
 	t.Run("fails when not initialized", func(t *testing.T) {
 		t.Setenv("HELMENV_ROOT", "")
-		err := Which()
+		err := Which(false)
 		if err == nil {
 			t.Fatal("expected error when not initialized")
 		}
@@ -36,7 +36,7 @@ func TestWhich(t *testing.T) {
 		installFakeVersion(t, tmpDir, "0.31.0")
 
 		output := captureStdout(t, func() {
-			err := Which()
+			err := Which(false)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -57,6 +57,7 @@ func TestWhich(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// Change to a directory without .helm-version
 		origDir, _ := os.Getwd()
 		noVersionDir := t.TempDir()
 		if err := os.Chdir(noVersionDir); err != nil {
@@ -65,7 +66,7 @@ func TestWhich(t *testing.T) {
 		defer func() { _ = os.Chdir(origDir) }()
 
 		output := captureStdout(t, func() {
-			err := Which()
+			err := Which(false)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -85,6 +86,7 @@ func TestWhich(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// Change to a directory without .helm-version
 		origDir, _ := os.Getwd()
 		noVersionDir := t.TempDir()
 		if err := os.Chdir(noVersionDir); err != nil {
@@ -92,9 +94,42 @@ func TestWhich(t *testing.T) {
 		}
 		defer func() { _ = os.Chdir(origDir) }()
 
-		err := Which()
+		err := Which(false)
 		if err == nil {
 			t.Fatal("expected error when no version configured")
+		}
+	})
+
+	t.Run("explain prints trace to stderr", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HELMENV_ROOT", tmpDir)
+		t.Setenv("HELMENV_VERSION", "")
+		installFakeVersion(t, tmpDir, "3.14.0")
+
+		workDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(workDir, ".helm-version"), []byte("3.14.0"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		origDir, _ := os.Getwd()
+		if err := os.Chdir(workDir); err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = os.Chdir(origDir) }()
+
+		stdout, stderr := captureBoth(t, func() {
+			if err := Which(true); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		if !strings.Contains(stderr, "local") {
+			t.Fatalf("expected 'local' in trace, stderr=%q", stderr)
+		}
+		if !strings.Contains(stderr, "resolved:") || !strings.Contains(stderr, "3.14.0") {
+			t.Fatalf("expected resolved trace line, stderr=%q", stderr)
+		}
+		expected := filepath.Join(tmpDir, "versions", "3.14.0", "helm")
+		if strings.TrimSpace(stdout) != expected {
+			t.Fatalf("expected stdout %q, got %q", expected, stdout)
 		}
 	})
 }

@@ -18,9 +18,11 @@ Commands:
   local           Set or show the local version of helm cli
   global          Set or show the global version of helm cli
   latest          Print the latest available version of helm cli from GitHub releases
-  which           Print the full path to the active helm binary
+  which           Print the full path to the active helm binary (--explain for a trace)
   resolve         Resolve the active version against installed versions
   exec            Run a command using a specific helm version
+  prune           Remove old installed versions (--keep N / --older-than DUR / --dry-run)
+  doctor          Run diagnostics against the helm-env installation
   status          Show current helm-env environment status
   upgrade         Upgrade helm-env to the latest version
   autocompletion  Generate shell autocompletion script
