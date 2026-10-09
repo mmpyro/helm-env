@@ -174,6 +174,69 @@ func TestAutocompletion_SubcommandSpecificCompletions(t *testing.T) {
 	})
 }
 
+func TestAutocompletion_NewCommandsAndFlagsPresent(t *testing.T) {
+	// Flag/token fragments that each shell's script MUST contain for the
+	// newly-added commands and flags. Each entry maps shell -> required
+	// substrings in that shell's generated script. The matchers are chosen
+	// to be loose enough to survive non-semantic formatting tweaks.
+	wantPerShell := map[string][]string{
+		"bash": {
+			// which --explain
+			"--explain -h --help",
+			// exec --auto / --no-auto
+			"--auto --no-auto",
+			// prune flags
+			"--keep --older-than --dry-run -h --help",
+			// resolve
+			"--concrete -h --help",
+		},
+		"zsh": {
+			"--explain[",
+			"--auto[",
+			"--no-auto[",
+			"--keep[",
+			"--older-than[",
+			"--dry-run[",
+			"--concrete[",
+		},
+		"fish": {
+			"-l explain",
+			"-l auto",
+			"-l no-auto",
+			"-l keep",
+			"-l older-than",
+			"-l dry-run",
+			"-l concrete",
+		},
+		"powershell": {
+			"'--explain'",
+			"'--auto'",
+			"'--no-auto'",
+			"'--keep'",
+			"'--older-than'",
+			"'--dry-run'",
+			"'--concrete'",
+		},
+	}
+
+	for shell, wants := range wantPerShell {
+		shell := shell
+		wants := wants
+		t.Run(shell, func(t *testing.T) {
+			output := captureStdout(t, func() {
+				if err := Autocompletion(shell); err != nil {
+					t.Fatalf("Autocompletion(%q) returned error: %v", shell, err)
+				}
+			})
+			for _, w := range wants {
+				if !strings.Contains(output, w) {
+					t.Errorf("%s script missing %q; got:\n%s", shell, w, output)
+				}
+			}
+		})
+	}
+}
+
 func TestAutocompletion_UnknownShellReturnsError(t *testing.T) {
 	err := Autocompletion("tcsh")
 	if err == nil {
