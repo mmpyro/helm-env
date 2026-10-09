@@ -23,22 +23,21 @@ set -e
 
 HELMENV_ROOT="%s"
 
-# Resolve version: HELMENV_VERSION > .helm-version (walk up) > $HELMENV_ROOT/version
-resolve_version() {
-    # 1. Check HELMENV_VERSION env var (shell version)
+# resolve_raw returns the version/constraint string from the first configured
+# source: HELMENV_VERSION > .helm-version (walk up) > $HELMENV_ROOT/version.
+# It does NOT consult installed versions.
+resolve_raw() {
     if [ -n "$HELMENV_VERSION" ]; then
-        echo "$HELMENV_VERSION"
-        return
+        printf '%%s\n' "$HELMENV_VERSION"
+        return 0
     fi
 
-    # 2. Walk up directories looking for .helm-version (local version)
-    local dir="$PWD"
+    dir="$PWD"
     while true; do
         if [ -f "$dir/.helm-version" ]; then
             cat "$dir/.helm-version"
-            return
+            return 0
         fi
-        local parent
         parent="$(dirname "$dir")"
         if [ "$parent" = "$dir" ]; then
             break
@@ -46,23 +45,76 @@ resolve_version() {
         dir="$parent"
     done
 
-    # 3. Check global version
     if [ -f "$HELMENV_ROOT/version" ]; then
         cat "$HELMENV_ROOT/version"
-        return
+        return 0
     fi
 
+    return 1
+}
+
+# is_exact_semver returns 0 (success) if $1 is a plain MAJOR.MINOR.PATCH[-pre].
+is_exact_semver() {
+    case "$1" in
+        *,*|*~*|*^*|*\<*|*\>*|*=*) return 1 ;;
+        latest|latest-stable|latest-installed|stable) return 1 ;;
+    esac
+    # Strip optional leading v.
+    v="${1#v}"
+    # Strip optional -prerelease suffix.
+    core="${v%%-*}"
+    IFS=.
+    set -- $core
+    unset IFS
+    [ $# -eq 3 ] || return 1
+    for seg in "$1" "$2" "$3"; do
+        case "$seg" in
+            ''|*[!0-9]*) return 1 ;;
+        esac
+    done
+    return 0
+}
+
+RAW_VERSION="$(resolve_raw)" || {
     echo "helm-env: no helm version configured" >&2
     echo "Set a version using 'helm-env shell', 'helm-env local', or 'helm-env global'" >&2
     exit 1
 }
+RAW_VERSION="$(printf '%%s' "$RAW_VERSION" | tr -d '[:space:]')"
 
-VERSION="$(resolve_version)"
+# Fast path: raw value is an exact semver AND is installed.
+if is_exact_semver "$RAW_VERSION" && [ -x "$HELMENV_ROOT/versions/$RAW_VERSION/helm" ]; then
+    VERSION="$RAW_VERSION"
+else
+    # Slow path: shell out to helm-env to resolve constraint / alias.
+    if VERSION="$(command helm-env resolve --concrete 2>/dev/null)"; then
+        :
+    else
+        VERSION=""
+    fi
+fi
+
+if [ -z "$VERSION" ] || [ ! -x "$HELMENV_ROOT/versions/$VERSION/helm" ]; then
+    case "${HELMENV_AUTO_INSTALL:-}" in
+        1|true|TRUE|True|yes|YES|Yes|on|ON|On)
+            # Auto-install: ask helm-env to install the resolved version.
+            TARGET="${VERSION:-$RAW_VERSION}"
+            if command helm-env install --silent "$TARGET" >&2; then
+                # Re-resolve in case TARGET was a constraint.
+                if NEW_VERSION="$(command helm-env resolve --concrete 2>/dev/null)"; then
+                    VERSION="$NEW_VERSION"
+                fi
+            fi
+            ;;
+    esac
+fi
+
 BINARY="$HELMENV_ROOT/versions/$VERSION/helm"
-
-if [ ! -x "$BINARY" ]; then
-    echo "helm-env: version $VERSION is not installed" >&2
-    echo "Install it with: helm-env install $VERSION" >&2
+if [ -z "$VERSION" ] || [ ! -x "$BINARY" ]; then
+    DISPLAY="${VERSION:-$RAW_VERSION}"
+    echo "helm-env: version $DISPLAY is not installed" >&2
+    echo "Install it with: helm-env install $DISPLAY" >&2
+    echo "Hint: set HELMENV_AUTO_INSTALL=1 to install missing versions automatically." >&2
     exit 1
 fi
 

@@ -28,6 +28,27 @@ func TestExec(t *testing.T) {
 		}
 	})
 
+	t.Run("resolves fuzzy version to installed", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HELMENV_ROOT", tmpDir)
+		for _, v := range []string{"3.14.0", "3.14.5"} {
+			vdir := filepath.Join(tmpDir, "versions", v)
+			if err := os.MkdirAll(vdir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(vdir, "helm"), []byte("binary"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := resolveExecVersion("3.14")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "3.14.5" {
+			t.Fatalf("got %q, want 3.14.5", got)
+		}
+	})
+
 	t.Run("fails when version or command missing", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HELMENV_ROOT", tmpDir)

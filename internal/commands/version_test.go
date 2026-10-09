@@ -30,6 +30,38 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
+// captureBoth captures stdout and stderr from a function call.
+func captureBoth(t *testing.T, fn func()) (string, string) {
+	t.Helper()
+	oldOut, oldErr := os.Stdout, os.Stderr
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rErr, wErr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = wOut
+	os.Stderr = wErr
+
+	fn()
+
+	_ = wOut.Close()
+	_ = wErr.Close()
+	os.Stdout = oldOut
+	os.Stderr = oldErr
+
+	var bufOut, bufErr bytes.Buffer
+	if _, err := io.Copy(&bufOut, rOut); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(&bufErr, rErr); err != nil {
+		t.Fatal(err)
+	}
+	return bufOut.String(), bufErr.String()
+}
+
 func TestPrintVersion(t *testing.T) {
 	t.Run("prints version", func(t *testing.T) {
 		Version = "1.2.3"

@@ -110,6 +110,12 @@ func main() {
 		err = commands.Global(version)
 
 	case "which":
+		for _, arg := range args[1:] {
+			if arg == "-h" || arg == "--help" {
+				commands.WhichHelp()
+				os.Exit(0)
+			}
+		}
 		err = commands.Which()
 
 	case "upgrade":
@@ -126,6 +132,18 @@ func main() {
 
 	case "status":
 		err = commands.Status()
+
+	case "resolve":
+		for _, arg := range args[1:] {
+			switch arg {
+			case "--concrete":
+				// Accepted for forward-compatibility; always concrete.
+			case "-h", "--help":
+				commands.ResolveHelp()
+				os.Exit(0)
+			}
+		}
+		err = commands.Resolve(true)
 
 	case "exec":
 		version := ""

@@ -7,6 +7,19 @@ import (
 	"testing"
 )
 
+// installFakeVersion creates $HELMENV_ROOT/versions/<v>/helm so
+// config.ResolveConcreteVersion recognises it as installed.
+func installFakeVersion(t *testing.T, root, v string) {
+	t.Helper()
+	vdir := filepath.Join(root, "versions", v)
+	if err := os.MkdirAll(vdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(vdir, "helm"), []byte("binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestWhich(t *testing.T) {
 	t.Run("fails when not initialized", func(t *testing.T) {
 		t.Setenv("HELMENV_ROOT", "")
@@ -20,9 +33,7 @@ func TestWhich(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HELMENV_ROOT", tmpDir)
 		t.Setenv("HELMENV_VERSION", "0.31.0")
-		if err := os.MkdirAll(filepath.Join(tmpDir, "versions"), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		installFakeVersion(t, tmpDir, "0.31.0")
 
 		output := captureStdout(t, func() {
 			err := Which()
@@ -41,14 +52,11 @@ func TestWhich(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HELMENV_ROOT", tmpDir)
 		t.Setenv("HELMENV_VERSION", "")
-		if err := os.MkdirAll(filepath.Join(tmpDir, "versions"), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		installFakeVersion(t, tmpDir, "0.32.0")
 		if err := os.WriteFile(filepath.Join(tmpDir, "version"), []byte("0.32.0"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
-		// Change to a directory without .helm-version
 		origDir, _ := os.Getwd()
 		noVersionDir := t.TempDir()
 		if err := os.Chdir(noVersionDir); err != nil {
@@ -77,7 +85,6 @@ func TestWhich(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Change to a directory without .helm-version
 		origDir, _ := os.Getwd()
 		noVersionDir := t.TempDir()
 		if err := os.Chdir(noVersionDir); err != nil {

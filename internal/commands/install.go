@@ -14,6 +14,7 @@ import (
 	"github.com/user/helm-env/internal/config"
 	"github.com/user/helm-env/internal/github"
 	"github.com/user/helm-env/internal/platform"
+	"github.com/user/helm-env/internal/semver"
 )
 
 // Install downloads and installs a specific helm version.
@@ -28,8 +29,13 @@ func installWithClient(client *github.Client, version string, silent bool) error
 		return err
 	}
 
-	// If no version specified, fetch latest
-	if version == "" {
+	// If no version specified, fetch latest (back-compat behaviour).
+	// "latest"/"latest-stable"/"stable" aliases resolve the same way; any
+	// other constraint ("3.14", "~3.14", "^3.14.0", …) is resolved against
+	// the remote release list.
+	if version == "" || strings.EqualFold(version, semver.AliasLatest) ||
+		strings.EqualFold(version, semver.AliasLatestStable) ||
+		strings.EqualFold(version, semver.AliasStable) {
 		latest, err := client.GetLatestRelease()
 		if err != nil {
 			return fmt.Errorf("failed to fetch latest version: %w", err)
@@ -38,6 +44,15 @@ func installWithClient(client *github.Client, version string, silent bool) error
 		if !silent {
 			fmt.Printf("Latest version: %s\n", version)
 		}
+	} else if !semver.IsExact(version) {
+		resolved, err := resolveInstallVersion(client, version)
+		if err != nil {
+			return err
+		}
+		if !silent {
+			fmt.Printf("Resolved %s → %s\n", version, resolved)
+		}
+		version = resolved
 	}
 
 	// Check if already installed
@@ -176,4 +191,47 @@ func extractFromTarGz(data []byte, targetName string) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("%s not found in archive", targetName)
+}
+
+// resolveInstallVersion resolves a constraint (partial, range) against the
+// full remote release list.
+func resolveInstallVersion(client *github.Client, constraint string) (string, error) {
+	stable, pre, err := getRemoteVersions(client)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch remote versions: %w", err)
+	}
+	candidates := stable
+	if hasPrereleaseHint(constraint) {
+		candidates = pre
+	}
+	matched, matchErr := semver.Match(constraint, candidates)
+	if matchErr != nil {
+		if alt, altErr := semver.Match(constraint, pre); altErr == nil {
+			return alt, nil
+		}
+		return "", fmt.Errorf("no remote version matches %q", constraint)
+	}
+	return matched, nil
+}
+
+// hasPrereleaseHint reports whether constraint explicitly references a
+// prerelease suffix (e.g. "3.14.0-rc.1" or ">=3.14.1-rc.1,<3.15.0").
+// Aliases like "latest" or "latest-installed" do not count.
+func hasPrereleaseHint(constraint string) bool {
+	if semver.IsAlias(constraint) {
+		return false
+	}
+	for _, part := range strings.Split(constraint, ",") {
+		trimmed := part
+		for _, op := range []string{">=", "<=", ">", "<", "=", "~", "^"} {
+			if len(trimmed) > len(op) && trimmed[:len(op)] == op {
+				trimmed = trimmed[len(op):]
+				break
+			}
+		}
+		if strings.Contains(trimmed, "-") {
+			return true
+		}
+	}
+	return false
 }

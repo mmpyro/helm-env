@@ -49,6 +49,12 @@ func TestGenerateShimScript(t *testing.T) {
 		if !strings.Contains(content, "exec") {
 			t.Fatal("shim should exec the binary")
 		}
+		if !strings.Contains(content, "HELMENV_AUTO_INSTALL") {
+			t.Fatal("shim should mention HELMENV_AUTO_INSTALL")
+		}
+		if !strings.Contains(content, "helm-env resolve") {
+			t.Fatal("shim should shell out to helm-env resolve for the slow path")
+		}
 	})
 
 	t.Run("creates shims directory", func(t *testing.T) {
