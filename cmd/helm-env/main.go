@@ -110,13 +110,17 @@ func main() {
 		err = commands.Global(version)
 
 	case "which":
+		explain := false
 		for _, arg := range args[1:] {
-			if arg == "-h" || arg == "--help" {
+			switch arg {
+			case "--explain":
+				explain = true
+			case "-h", "--help":
 				commands.WhichHelp()
 				os.Exit(0)
 			}
 		}
-		err = commands.Which()
+		err = commands.Which(explain)
 
 	case "upgrade":
 		err = commands.Upgrade()
@@ -134,16 +138,71 @@ func main() {
 		err = commands.Status()
 
 	case "resolve":
+		concrete := true
 		for _, arg := range args[1:] {
 			switch arg {
 			case "--concrete":
-				// Accepted for forward-compatibility; always concrete.
+				concrete = true
 			case "-h", "--help":
 				commands.ResolveHelp()
 				os.Exit(0)
 			}
 		}
-		err = commands.Resolve(true)
+		err = commands.Resolve(concrete)
+
+	case "prune":
+		keep := 0
+		olderThan := ""
+		dryRun := false
+		for i := 1; i < len(args); i++ {
+			arg := args[i]
+			switch {
+			case arg == "--dry-run":
+				dryRun = true
+			case arg == "--keep":
+				if i+1 >= len(args) {
+					err = fmt.Errorf("--keep requires a value")
+				} else {
+					i++
+					if _, perr := fmt.Sscanf(args[i], "%d", &keep); perr != nil {
+						err = fmt.Errorf("invalid --keep value %q: %w", args[i], perr)
+					}
+				}
+			case strings.HasPrefix(arg, "--keep="):
+				if _, perr := fmt.Sscanf(strings.TrimPrefix(arg, "--keep="), "%d", &keep); perr != nil {
+					err = fmt.Errorf("invalid --keep value: %w", perr)
+				}
+			case arg == "--older-than":
+				if i+1 >= len(args) {
+					err = fmt.Errorf("--older-than requires a value")
+				} else {
+					i++
+					olderThan = args[i]
+				}
+			case strings.HasPrefix(arg, "--older-than="):
+				olderThan = strings.TrimPrefix(arg, "--older-than=")
+			case arg == "-h" || arg == "--help":
+				commands.PruneHelp()
+				os.Exit(0)
+			default:
+				err = fmt.Errorf("unknown flag %q for prune", arg)
+			}
+			if err != nil {
+				break
+			}
+		}
+		if err == nil {
+			err = commands.Prune(keep, olderThan, dryRun)
+		}
+
+	case "doctor":
+		for _, arg := range args[1:] {
+			if arg == "-h" || arg == "--help" {
+				commands.DoctorHelp()
+				os.Exit(0)
+			}
+		}
+		err = commands.Doctor()
 
 	case "exec":
 		version := ""
