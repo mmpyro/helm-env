@@ -3,7 +3,7 @@ BINARY_NAME = helm-env
 BUILD_DIR = build
 LDFLAGS = -ldflags "-X main.Version=$(VERSION)"
 
-.PHONY: build build-all test test-docker clean install
+.PHONY: build build-all test test-docker clean install docs-build docs-serve
 
 ## build: Build for current platform
 build:
@@ -31,6 +31,19 @@ clean:
 ## install: Install to GOPATH/bin
 install:
 	go install $(LDFLAGS) ./cmd/helm-env
+
+.venv-docs: docs/requirements.txt
+	python3 -m venv .venv-docs
+	.venv-docs/bin/pip install -q -r docs/requirements.txt
+	touch .venv-docs
+
+## docs-build: Build the MkDocs site into site/ (strict)
+docs-build: .venv-docs
+	.venv-docs/bin/mkdocs build --strict
+
+## docs-serve: Serve docs with live reload at http://127.0.0.1:8000/helm-env/
+docs-serve: .venv-docs
+	.venv-docs/bin/mkdocs serve
 
 ## help: Show this help
 help:

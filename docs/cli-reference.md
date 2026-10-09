@@ -2,6 +2,9 @@
 
 This reference covers every `helm-env` command implemented by the project.
 
+!!! tip "Version arguments"
+    Every `<version>` argument accepts exact versions, partials, aliases, tildes, carets, and comparator ranges — see [Version strings](#version-strings) for the full table.
+
 Conventions:
 
 - Commands return exit code `0` on success.
