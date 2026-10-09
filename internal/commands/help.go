@@ -20,7 +20,7 @@ Commands:
   latest          Print the latest available version of helm cli from GitHub releases
   which           Print the full path to the active helm binary
   resolve         Resolve the active version against installed versions
-  exec            Run a command using a specific helm version
+  exec            Run a command using a specific helm version (--auto / --no-auto)
   status          Show current helm-env environment status
   upgrade         Upgrade helm-env to the latest version
   autocompletion  Generate shell autocompletion script

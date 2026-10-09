@@ -148,13 +148,27 @@ func main() {
 	case "exec":
 		version := ""
 		execArgs := []string{}
-		if len(args) > 1 {
-			version = args[1]
-			if len(args) > 2 {
-				execArgs = args[2:]
+		auto := commands.AutoFromEnv()
+		foundVersion := false
+		for i := 1; i < len(args); i++ {
+			arg := args[i]
+			switch arg {
+			case "--auto":
+				auto = commands.AutoForce
+			case "--no-auto":
+				auto = commands.AutoDisabled
+			default:
+				if !foundVersion && !strings.HasPrefix(arg, "-") {
+					version = arg
+					foundVersion = true
+					if i+1 < len(args) {
+						execArgs = args[i+1:]
+					}
+					i = len(args)
+				}
 			}
 		}
-		err = commands.Exec(version, execArgs)
+		err = commands.ExecWithOptions(version, execArgs, auto)
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", args[0])

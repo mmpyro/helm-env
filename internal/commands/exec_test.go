@@ -18,6 +18,7 @@ func TestExec(t *testing.T) {
 	t.Run("fails when version not installed", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HELMENV_ROOT", tmpDir)
+		t.Setenv("HELMENV_AUTO_INSTALL", "")
 		if err := os.MkdirAll(filepath.Join(tmpDir, "versions"), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -31,6 +32,7 @@ func TestExec(t *testing.T) {
 	t.Run("resolves fuzzy version to installed", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HELMENV_ROOT", tmpDir)
+		t.Setenv("HELMENV_AUTO_INSTALL", "")
 		for _, v := range []string{"3.14.0", "3.14.5"} {
 			vdir := filepath.Join(tmpDir, "versions", v)
 			if err := os.MkdirAll(vdir, 0o755); err != nil {
@@ -40,7 +42,8 @@ func TestExec(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		got, err := resolveExecVersion("3.14")
+		// Use resolveExecVersion directly so we don't actually fork.
+		got, err := resolveExecVersion("3.14", AutoDefault)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
