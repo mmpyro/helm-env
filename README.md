@@ -160,7 +160,7 @@ Add the following to your `~/.bashrc`:
 # helm-env setup
 export HELMENV_ROOT="$HOME/.helmenv"
 eval "$(helm-env init)"
-source <(helm-env autocompletion)
+source <(helm-env autocompletion bash)
 ```
 
 ### Zsh
@@ -171,7 +171,26 @@ Add the following to your `~/.zshrc`:
 # helm-env setup
 export HELMENV_ROOT="$HOME/.helmenv"
 eval "$(helm-env init)"
-source <(helm-env autocompletion)
+eval "$(helm-env autocompletion zsh)"
+```
+
+### Fish
+
+Add the following to your `~/.config/fish/config.fish`:
+
+```fish
+# helm-env setup
+set -gx HELMENV_ROOT "$HOME/.helmenv"
+helm-env init | source
+helm-env autocompletion fish | source
+```
+
+### PowerShell
+
+Append the completion script to your profile once:
+
+```powershell
+helm-env autocompletion powershell >> $PROFILE
 ```
 
 ## Release source

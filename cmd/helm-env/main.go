@@ -116,13 +116,16 @@ func main() {
 		err = commands.Upgrade()
 
 	case "autocompletion":
+		shell := ""
 		for _, arg := range args[1:] {
 			if arg == "-h" || arg == "--help" {
 				commands.AutocompletionHelp()
 				os.Exit(0)
+			} else if shell == "" && !strings.HasPrefix(arg, "-") {
+				shell = arg
 			}
 		}
-		err = commands.Autocompletion()
+		err = commands.Autocompletion(shell)
 
 	case "status":
 		err = commands.Status()
