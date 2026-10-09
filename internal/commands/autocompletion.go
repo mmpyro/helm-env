@@ -27,6 +27,9 @@ var subcommands = []string{
 	"upgrade",
 	"autocompletion",
 	"status",
+	"resolve",
+	"prune",
+	"doctor",
 	"exec",
 }
 
@@ -37,7 +40,10 @@ var supportedShells = []string{"bash", "zsh", "fish", "powershell"}
 // versionCompletingSubcommands are the subcommands that accept an installed
 // helm version as an argument. Their completion is populated by invoking
 // `helm-env list` at completion time.
-var versionCompletingSubcommands = []string{"uninstall", "shell", "local", "global", "exec"}
+//
+// `exec` is intentionally omitted here: it has its own completion case that
+// combines installed versions with the --auto / --no-auto flags.
+var versionCompletingSubcommands = []string{"uninstall", "shell", "local", "global"}
 
 // prereleaseSubcommands are the subcommands that accept the --prerelease flag.
 var prereleaseSubcommands = []string{"list-remote", "latest"}
@@ -159,12 +165,35 @@ _helm_env_completions() {
             COMPREPLY=( $(compgen -W "${versions}" -- "${cur}") )
             return 0
             ;;
+        exec)
+            # exec takes an installed version plus optional --auto / --no-auto
+            local versions
+            versions=$(helm-env list 2>/dev/null)
+            COMPREPLY=( $(compgen -W "${versions} --auto --no-auto" -- "${cur}") )
+            return 0
+            ;;
         install)
             COMPREPLY=( $(compgen -W "-s --silent -h --help" -- "${cur}") )
             return 0
             ;;
         ` + prereleaseCmds + `)
             COMPREPLY=( $(compgen -W "--prerelease --help" -- "${cur}") )
+            return 0
+            ;;
+        which)
+            COMPREPLY=( $(compgen -W "--explain -h --help" -- "${cur}") )
+            return 0
+            ;;
+        prune)
+            COMPREPLY=( $(compgen -W "--keep --older-than --dry-run -h --help" -- "${cur}") )
+            return 0
+            ;;
+        resolve)
+            COMPREPLY=( $(compgen -W "--concrete -h --help" -- "${cur}") )
+            return 0
+            ;;
+        doctor)
+            COMPREPLY=( $(compgen -W "-h --help" -- "${cur}") )
             return 0
             ;;
     esac
@@ -213,8 +242,14 @@ _helm_env() {
       ;;
     args)
       case $words[1] in
-        uninstall|shell|local|global|exec)
+        uninstall|shell|local|global)
           _helm_env_list_versions
+          ;;
+        exec)
+          _helm_env_list_versions
+          _arguments \
+            '--auto[force auto-install of missing versions]' \
+            '--no-auto[disable auto-install even when HELMENV_AUTO_INSTALL is set]'
           ;;
         install)
           _arguments \
@@ -225,6 +260,26 @@ _helm_env() {
           _arguments \
             '--prerelease[include pre-release versions]' \
             '--help[show help]'
+          ;;
+        which)
+          _arguments \
+            '--explain[print the resolution trace]' \
+            '(-h --help)'{-h,--help}'[show help]'
+          ;;
+        prune)
+          _arguments \
+            '--keep[keep the N newest installed versions]:count:' \
+            '--older-than[prune versions older than DURATION (e.g. 180d, 24h)]:duration:' \
+            '--dry-run[print what would be pruned without removing]' \
+            '(-h --help)'{-h,--help}'[show help]'
+          ;;
+        resolve)
+          _arguments \
+            '--concrete[print the resolved concrete installed version]' \
+            '(-h --help)'{-h,--help}'[show help]'
+          ;;
+        doctor)
+          _arguments '(-h --help)'{-h,--help}'[show help]'
           ;;
       esac
       ;;
@@ -263,6 +318,12 @@ func printFishCompletion(w io.Writer) error {
 		strings.Join(versionCompletingSubcommands, " "),
 	)
 
+	// exec takes installed versions AND --auto / --no-auto flags.
+	b.WriteString("# exec: installed versions + auto-install flags\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from exec' -a '(__helm_env_installed_versions)'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from exec' -l auto -d 'Force auto-install of missing versions'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from exec' -l no-auto -d 'Disable auto-install'\n\n")
+
 	// install flags.
 	b.WriteString("# install flags\n")
 	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from install' -s s -l silent -d 'Do not display progress bar'\n")
@@ -275,9 +336,30 @@ func printFishCompletion(w io.Writer) error {
 		strings.Join(prereleaseSubcommands, " "),
 	)
 	fmt.Fprintf(&b,
-		"complete -c helm-env -f -n '__fish_seen_subcommand_from %s' -l help -d 'Show help'\n",
+		"complete -c helm-env -f -n '__fish_seen_subcommand_from %s' -l help -d 'Show help'\n\n",
 		strings.Join(prereleaseSubcommands, " "),
 	)
+
+	// which flags.
+	b.WriteString("# which flags\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from which' -l explain -d 'Print the resolution trace'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from which' -s h -l help -d 'Show help'\n\n")
+
+	// prune flags.
+	b.WriteString("# prune flags\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l keep -d 'Keep the N newest installed versions'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l older-than -d 'Prune versions older than DURATION'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l dry-run -d 'Print what would be pruned without removing'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -s h -l help -d 'Show help'\n\n")
+
+	// resolve flags.
+	b.WriteString("# resolve flags\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from resolve' -l concrete -d 'Print the resolved concrete installed version'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from resolve' -s h -l help -d 'Show help'\n\n")
+
+	// doctor flags.
+	b.WriteString("# doctor flags\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from doctor' -s h -l help -d 'Show help'\n")
 
 	_, err := fmt.Fprint(w, b.String())
 	return err
@@ -331,6 +413,48 @@ Register-ArgumentCompleter -CommandName helm-env -Native -ScriptBlock {
 
     if ($prereleaseSubcommands -contains $subcommand) {
         @('--prerelease', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
+        }
+        return
+    }
+
+    if ($subcommand -eq 'exec') {
+        # exec takes an installed version plus --auto / --no-auto.
+        try {
+            $versions = & helm-env list 2>$null
+        } catch {
+            $versions = @()
+        }
+        $candidates = @($versions) + @('--auto', '--no-auto')
+        $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        }
+        return
+    }
+
+    if ($subcommand -eq 'which') {
+        @('--explain', '-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
+        }
+        return
+    }
+
+    if ($subcommand -eq 'prune') {
+        @('--keep', '--older-than', '--dry-run', '-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
+        }
+        return
+    }
+
+    if ($subcommand -eq 'resolve') {
+        @('--concrete', '-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
+        }
+        return
+    }
+
+    if ($subcommand -eq 'doctor') {
+        @('-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
             [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
         }
         return
@@ -394,6 +518,12 @@ func subcommandDescription(cmd string) string {
 		return "Generate shell completion script"
 	case "status":
 		return "Show current helm-env environment status"
+	case "resolve":
+		return "Resolve a version constraint to a concrete installed version"
+	case "prune":
+		return "Remove old installed helm versions"
+	case "doctor":
+		return "Diagnose helm-env setup and environment"
 	case "exec":
 		return "Run a command using a specific helm version"
 	default:
