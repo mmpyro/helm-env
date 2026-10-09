@@ -210,15 +210,15 @@ func splitPath(p string) []string {
 }
 
 // checkReachable performs a short HEAD request.
+//
+// Any response at all (2xx, 3xx, or even 4xx/5xx on a bare host) is treated
+// as "reachable" — we only care that TCP + TLS succeeded and the server
+// answered.  Only a transport-level failure returns an error.
 func checkReachable(url string) error {
 	resp, err := doctorHTTPClient.Head(url)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	// Any 2xx or 3xx response means the host is reachable.
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		// 4xx for a HEAD on a bare host is still "reachable" semantically.
-	}
 	return nil
 }
