@@ -190,5 +190,7 @@ teardown() {
 	run helm-env autocompletion --help
 	assert_success
 	assert_output --partial "autocompletion"
-	assert_output --partial "source <(helm-env autocompletion)"
+	# help text now documents multi-shell generation and shows a per-shell
+	# example (bash/zsh/fish/powershell); accept any of the per-shell snippets.
+	assert_output --partial "source <(helm-env autocompletion bash)"
 }
