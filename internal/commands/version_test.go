@@ -31,6 +31,14 @@ func captureStdout(t *testing.T, fn func()) string {
 }
 
 // captureBoth captures stdout and stderr from a function call.
+//
+// Shared test helper used by stacked PRs: the `which` and `prune` tests
+// introduced by Feature 5 both need combined stdout/stderr capture because
+// their --explain and dry-run flows split output across the two streams.
+// Keeping the helper here lets Feature 5 land as a leaf change that only
+// adds new _test.go files instead of reaching back into this package.
+//
+//nolint:unused // consumed by which_test.go and prune_test.go in stacked PRs
 func captureBoth(t *testing.T, fn func()) (string, string) {
 	t.Helper()
 	oldOut, oldErr := os.Stdout, os.Stderr

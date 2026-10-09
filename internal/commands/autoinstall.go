@@ -78,7 +78,7 @@ func defaultInstaller(client *github.Client, version string, silent bool) error 
 	return installWithClient(client, version, silent)
 }
 
-// autoInstallIfEnabled is the central entry point used by every command
+// autoInstallIfEnabledWith is the central entry point used by every command
 // that wants to transparently install a missing version.
 //
 // It calls config.ResolveConcreteVersion first.  If the result is a
@@ -91,10 +91,9 @@ func defaultInstaller(client *github.Client, version string, silent bool) error 
 //  4. Returns the newly installed concrete version.
 //
 // If auto-install is disabled, the original error is returned untouched.
-func autoInstallIfEnabled(mode AutoInstallMode) (string, error) {
-	return autoInstallIfEnabledWith(mode, github.NewClient(), os.Stderr)
-}
-
+//
+// Callers inject the github client and stderr writer so this stays testable
+// without reaching for package globals.
 func autoInstallIfEnabledWith(mode AutoInstallMode, client *github.Client, stderr io.Writer) (string, error) {
 	v, err := config.ResolveConcreteVersion()
 	if err == nil {
