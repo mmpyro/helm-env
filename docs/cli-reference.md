@@ -516,30 +516,69 @@ helm-env status
 
 ### `autocompletion`
 
-Purpose: Generate bash autocompletion script for `helm-env`.
+Purpose: Generate a shell completion script for `helm-env`.
 
-The script provides completion for subcommands and suggests installed versions for commands that accept a version argument (`install`, `uninstall`, `shell`, `local`, `global`, `exec`).
+Supported shells: `bash`, `zsh`, `fish`, `powershell`.
+
+The script provides completion for subcommands and suggests installed versions
+for commands that accept a version argument (`uninstall`, `shell`, `local`,
+`global`, `exec`). For `install`, `-s`/`--silent` and `-h`/`--help` are
+suggested; for `list-remote` and `latest`, `--prerelease` and `--help` are
+suggested.
 
 Syntax:
 
 ```text
-helm-env autocompletion
+helm-env autocompletion [SHELL]
 ```
+
+When `SHELL` is omitted, `helm-env` detects your current shell from the
+`$SHELL` environment variable (falling back to `bash`). A short notice is
+written to stderr so you still see which script was generated when the output
+is piped to `source`. PowerShell is never auto-detected and must be requested
+explicitly.
 
 Options/flags:
 - `-h`, `--help`: show command help and exit
 
-Environment variables: none.
+Environment variables:
+- `$SHELL` (optional; read for shell auto-detection when `SHELL` arg is omitted)
 
 Exit codes:
 - `0` on success.
+- `1` if an unsupported shell is requested.
 
-Example:
+Examples:
 
 ```sh
-# Enable autocompletion for the current session
-source <(helm-env autocompletion)
+# bash — current session
+source <(helm-env autocompletion bash)
 
-# Enable autocompletion permanently
-echo 'source <(helm-env autocompletion)' >> ~/.bashrc
+# bash — persistent
+echo 'source <(helm-env autocompletion bash)' >> ~/.bashrc
+```
+
+```sh
+# zsh — current session (simplest)
+eval "$(helm-env autocompletion zsh)"
+
+# zsh — persistent via fpath + compinit
+mkdir -p ~/.zsh/completions
+helm-env autocompletion zsh > ~/.zsh/completions/_helm-env
+# Then add to ~/.zshrc (before any `compinit` call):
+#   fpath=(~/.zsh/completions $fpath)
+#   autoload -Uz compinit && compinit
+```
+
+```sh
+# fish — current session
+helm-env autocompletion fish | source
+
+# fish — persistent
+helm-env autocompletion fish > ~/.config/fish/completions/helm-env.fish
+```
+
+```powershell
+# powershell — persistent (append to your profile)
+helm-env autocompletion powershell >> $PROFILE
 ```
