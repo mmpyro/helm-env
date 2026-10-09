@@ -133,12 +133,38 @@ Full reference: [docs/cli-reference.md](docs/cli-reference.md)
 | `helm-env status` | Show current environment status |
 | `helm-env install [VERSION]` | Install a specific version (or latest) |
 | `helm-env uninstall VERSION` | Uninstall a specific version |
-| `helm-env exec VERSION CMD` | Run a command using a specific helm version |
+| `helm-env exec [--auto\|--no-auto] VERSION CMD` | Run a command using a specific helm version |
 | `helm-env shell [VERSION]` | Set/show shell version (`HELMENV_VERSION`) |
 | `helm-env local [VERSION]` | Set/show local version (`.helm-version`) |
 | `helm-env global [VERSION]` | Set/show global version (`$HELMENV_ROOT/version`) |
-| `helm-env which` | Print path to active helm binary |
+| `helm-env which [--explain]` | Print path to active helm binary (optionally with resolution trace) |
+| `helm-env resolve` | Resolve the active constraint and print the concrete installed version |
+| `helm-env prune [--keep N] [--older-than DUR] [--dry-run]` | Remove old installed versions |
+| `helm-env doctor` | Run diagnostics against the helm-env installation |
 | `helm-env version` | Print helm-env version |
+
+## Version strings
+
+Every version slot (`HELMENV_VERSION`, `.helm-version`, `$HELMENV_ROOT/version`, and every CLI `<version>` argument) accepts:
+
+- Exact: `3.14.0`
+- Partial: `3.14` → highest `3.14.x`; `3` → highest `3.x.y`
+- Aliases: `latest` / `latest-stable` / `stable` (highest stable), `latest-installed` (highest installed)
+- Tilde: `~3.14.0`, `~3.14`
+- Caret: `^3.14.0`
+- Comparators: `>3.14.0`, `>=3.14.0`, `<4.0.0`, `<=3.14.0`, `=3.14.0`
+- AND-combined ranges: `>=3.12.0,<4.0.0`
+
+`install` and the `latest*` aliases resolve against the remote release list; every other command resolves against installed versions on disk.
+
+## Auto-install
+
+Set `HELMENV_AUTO_INSTALL` to a truthy value (`1`, `true`, `yes`, `on`) and `helm-env` will transparently install missing helm versions when they are first resolved. Per-invocation overrides for `helm-env exec`:
+
+- `--auto` → force auto-install for this call.
+- `--no-auto` → disable auto-install for this call even if the env var is set.
+
+Auto-install is **disabled** by default: a silent fallback is otherwise dangerous.
 
 ## Version Priority
 
