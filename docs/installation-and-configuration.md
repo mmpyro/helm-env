@@ -32,7 +32,7 @@ No existing `helm` installation is required; `helm-env` manages the `helm` binar
     Example (Linux x86_64):
 
     ```sh
-    curl -L -o helm-env https://github.com/mmpyro/helm-env/releases/download/v1.0.0/helm-env-linux-amd64
+    curl -L -o helm-env https://github.com/mmpyro/helm-env/releases/download/v1.2.0/helm-env-linux-amd64
     chmod +x helm-env
     sudo mv helm-env /usr/local/bin/helm-env
     ```
