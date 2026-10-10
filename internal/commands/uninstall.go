@@ -7,6 +7,16 @@ import (
 	"github.com/user/helm-env/internal/config"
 )
 
+// UninstallHelp prints help for the uninstall command.
+func UninstallHelp() {
+	fmt.Println(`Usage: helm-env uninstall <version>
+
+Remove an installed helm version from $HELMENV_ROOT/versions.
+
+Flags:
+  -h, --help   Show this help message.`)
+}
+
 // Uninstall removes an installed helm version.
 func Uninstall(version string) error {
 	if err := config.RequireInit(); err != nil {

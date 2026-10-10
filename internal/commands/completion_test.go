@@ -45,13 +45,13 @@ var shellMarkers = []shellMarker{
 	{"powershell", "Register-ArgumentCompleter"},
 }
 
-func TestAutocompletion_AllShellsEmitExpectedMarkers(t *testing.T) {
+func TestCompletion_AllShellsEmitExpectedMarkers(t *testing.T) {
 	for _, sm := range shellMarkers {
 		sm := sm
 		t.Run(sm.shell, func(t *testing.T) {
 			output := captureStdout(t, func() {
-				if err := Autocompletion(sm.shell); err != nil {
-					t.Fatalf("Autocompletion(%q) returned error: %v", sm.shell, err)
+				if err := Completion(sm.shell); err != nil {
+					t.Fatalf("Completion(%q) returned error: %v", sm.shell, err)
 				}
 			})
 			if !strings.Contains(output, sm.marker) {
@@ -61,13 +61,13 @@ func TestAutocompletion_AllShellsEmitExpectedMarkers(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_AllShellsListEverySubcommand(t *testing.T) {
+func TestCompletion_AllShellsListEverySubcommand(t *testing.T) {
 	for _, sm := range shellMarkers {
 		sm := sm
 		t.Run(sm.shell, func(t *testing.T) {
 			output := captureStdout(t, func() {
-				if err := Autocompletion(sm.shell); err != nil {
-					t.Fatalf("Autocompletion(%q) returned error: %v", sm.shell, err)
+				if err := Completion(sm.shell); err != nil {
+					t.Fatalf("Completion(%q) returned error: %v", sm.shell, err)
 				}
 			})
 
@@ -80,9 +80,9 @@ func TestAutocompletion_AllShellsListEverySubcommand(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_BashBackwardCompatAliasPresent(t *testing.T) {
+func TestCompletion_BashBackwardCompatAliasPresent(t *testing.T) {
 	output := captureStdout(t, func() {
-		if err := Autocompletion("bash"); err != nil {
+		if err := Completion("bash"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -99,9 +99,9 @@ func TestAutocompletion_BashBackwardCompatAliasPresent(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_ZshUsesArgumentsAndDescribe(t *testing.T) {
+func TestCompletion_ZshUsesArgumentsAndDescribe(t *testing.T) {
 	output := captureStdout(t, func() {
-		if err := Autocompletion("zsh"); err != nil {
+		if err := Completion("zsh"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -113,9 +113,9 @@ func TestAutocompletion_ZshUsesArgumentsAndDescribe(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_FishUsesUseSubcommand(t *testing.T) {
+func TestCompletion_FishUsesUseSubcommand(t *testing.T) {
 	output := captureStdout(t, func() {
-		if err := Autocompletion("fish"); err != nil {
+		if err := Completion("fish"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -131,9 +131,9 @@ func TestAutocompletion_FishUsesUseSubcommand(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_PowershellUsesNativeArgumentCompleter(t *testing.T) {
+func TestCompletion_PowershellUsesNativeArgumentCompleter(t *testing.T) {
 	output := captureStdout(t, func() {
-		if err := Autocompletion("powershell"); err != nil {
+		if err := Completion("powershell"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -151,30 +151,30 @@ func TestAutocompletion_PowershellUsesNativeArgumentCompleter(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_SubcommandSpecificCompletions(t *testing.T) {
+func TestCompletion_SubcommandSpecificCompletions(t *testing.T) {
 	t.Run("bash install flags present", func(t *testing.T) {
-		output := captureStdout(t, func() { _ = Autocompletion("bash") })
+		output := captureStdout(t, func() { _ = Completion("bash") })
 		if !strings.Contains(output, "-s --silent -h --help") {
 			t.Errorf("bash install completion should offer flags; got:\n%s", output)
 		}
 	})
 
 	t.Run("bash list-remote/latest offer --prerelease", func(t *testing.T) {
-		output := captureStdout(t, func() { _ = Autocompletion("bash") })
+		output := captureStdout(t, func() { _ = Completion("bash") })
 		if !strings.Contains(output, "--prerelease --help") {
 			t.Errorf("bash list-remote/latest completion should offer --prerelease and --help; got:\n%s", output)
 		}
 	})
 
 	t.Run("fish install -s flag present", func(t *testing.T) {
-		output := captureStdout(t, func() { _ = Autocompletion("fish") })
+		output := captureStdout(t, func() { _ = Completion("fish") })
 		if !strings.Contains(output, "-s silent") && !strings.Contains(output, "-s s -l silent") {
 			t.Errorf("fish install completion should offer -s/--silent; got:\n%s", output)
 		}
 	})
 }
 
-func TestAutocompletion_NewCommandsAndFlagsPresent(t *testing.T) {
+func TestCompletion_NewCommandsAndFlagsPresent(t *testing.T) {
 	// Flag/token fragments that each shell's script MUST contain for the
 	// newly-added commands and flags. Each entry maps shell -> required
 	// substrings in that shell's generated script. The matchers are chosen
@@ -186,36 +186,44 @@ func TestAutocompletion_NewCommandsAndFlagsPresent(t *testing.T) {
 			// exec --auto / --no-auto
 			"--auto --no-auto",
 			// prune flags
-			"--keep --older-than --dry-run -h --help",
+			"--keep-last --older-than --dry-run --yes -h --help",
 			// resolve
-			"--concrete -h --help",
+			"--install -s --silent -h --help",
+			// doctor
+			"--fix -h --help",
 		},
 		"zsh": {
 			"--explain[",
 			"--auto[",
 			"--no-auto[",
-			"--keep[",
+			"--keep-last[",
 			"--older-than[",
 			"--dry-run[",
-			"--concrete[",
+			"--yes[",
+			"--install[",
+			"--fix[",
 		},
 		"fish": {
 			"-l explain",
 			"-l auto",
 			"-l no-auto",
-			"-l keep",
+			"-l keep-last",
 			"-l older-than",
 			"-l dry-run",
-			"-l concrete",
+			"-l yes",
+			"-l install",
+			"-l fix",
 		},
 		"powershell": {
 			"'--explain'",
 			"'--auto'",
 			"'--no-auto'",
-			"'--keep'",
+			"'--keep-last'",
 			"'--older-than'",
 			"'--dry-run'",
-			"'--concrete'",
+			"'--yes'",
+			"'--install'",
+			"'--fix'",
 		},
 	}
 
@@ -224,8 +232,8 @@ func TestAutocompletion_NewCommandsAndFlagsPresent(t *testing.T) {
 		wants := wants
 		t.Run(shell, func(t *testing.T) {
 			output := captureStdout(t, func() {
-				if err := Autocompletion(shell); err != nil {
-					t.Fatalf("Autocompletion(%q) returned error: %v", shell, err)
+				if err := Completion(shell); err != nil {
+					t.Fatalf("Completion(%q) returned error: %v", shell, err)
 				}
 			})
 			for _, w := range wants {
@@ -237,8 +245,8 @@ func TestAutocompletion_NewCommandsAndFlagsPresent(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_UnknownShellReturnsError(t *testing.T) {
-	err := Autocompletion("tcsh")
+func TestCompletion_UnknownShellReturnsError(t *testing.T) {
+	err := Completion("tcsh")
 	if err == nil {
 		t.Fatal("expected error for unknown shell, got nil")
 	}
@@ -253,13 +261,13 @@ func TestAutocompletion_UnknownShellReturnsError(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_DefaultDetectsShellAndPrintsNotice(t *testing.T) {
+func TestCompletion_DefaultDetectsShellAndPrintsNotice(t *testing.T) {
 	t.Setenv("SHELL", "/usr/local/bin/fish")
 
 	var stdoutStr, stderrStr string
 	stderrStr = captureStderr(t, func() {
 		stdoutStr = captureStdout(t, func() {
-			if err := Autocompletion(""); err != nil {
+			if err := Completion(""); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
@@ -273,13 +281,13 @@ func TestAutocompletion_DefaultDetectsShellAndPrintsNotice(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_DefaultFallsBackToBashWhenShellUnset(t *testing.T) {
+func TestCompletion_DefaultFallsBackToBashWhenShellUnset(t *testing.T) {
 	t.Setenv("SHELL", "")
 
 	var stdoutStr, stderrStr string
 	stderrStr = captureStderr(t, func() {
 		stdoutStr = captureStdout(t, func() {
-			if err := Autocompletion(""); err != nil {
+			if err := Completion(""); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
@@ -293,12 +301,12 @@ func TestAutocompletion_DefaultFallsBackToBashWhenShellUnset(t *testing.T) {
 	}
 }
 
-func TestAutocompletion_ExplicitShellSuppressesStderrNotice(t *testing.T) {
+func TestCompletion_ExplicitShellSuppressesStderrNotice(t *testing.T) {
 	t.Setenv("SHELL", "/bin/bash")
 
 	stderrStr := captureStderr(t, func() {
 		_ = captureStdout(t, func() {
-			if err := Autocompletion("zsh"); err != nil {
+			if err := Completion("zsh"); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
@@ -335,10 +343,10 @@ func TestDetectShell(t *testing.T) {
 	}
 }
 
-func TestAutocompletionHelp_MentionsSupportedShells(t *testing.T) {
-	output := captureStdout(t, AutocompletionHelp)
+func TestCompletionHelp_MentionsSupportedShells(t *testing.T) {
+	output := captureStdout(t, CompletionHelp)
 
-	if !strings.Contains(output, "helm-env autocompletion [SHELL]") {
+	if !strings.Contains(output, "helm-env completion [SHELL] [--shell SHELL]") {
 		t.Errorf("help should document the new syntax; got:\n%s", output)
 	}
 	for _, s := range supportedShells {
@@ -348,15 +356,15 @@ func TestAutocompletionHelp_MentionsSupportedShells(t *testing.T) {
 	}
 }
 
-func TestAutocompletionHelp_ShortCircuitsFromDispatcher(t *testing.T) {
+func TestCompletionHelp_ShortCircuitsFromDispatcher(t *testing.T) {
 	// Simulates the main.go dispatcher's -h / --help short-circuit:
-	// when the user passes -h or --help, AutocompletionHelp is called
-	// and Autocompletion() is NEVER invoked, so no shell script should
+	// when the user passes -h or --help, CompletionHelp is called
+	// and Completion() is NEVER invoked, so no shell script should
 	// land on stdout.
 	for _, flag := range []string{"-h", "--help"} {
 		flag := flag
 		t.Run(flag, func(t *testing.T) {
-			output := captureStdout(t, AutocompletionHelp)
+			output := captureStdout(t, CompletionHelp)
 
 			for _, sm := range shellMarkers {
 				if strings.Contains(output, sm.marker) {
@@ -364,8 +372,92 @@ func TestAutocompletionHelp_ShortCircuitsFromDispatcher(t *testing.T) {
 				}
 			}
 			// And it should still contain the help preamble.
-			if !strings.Contains(output, "Usage: helm-env autocompletion") {
+			if !strings.Contains(output, "Usage: helm-env completion") {
 				t.Errorf("help output missing usage preamble when invoked for %q; got:\n%s", flag, output)
+			}
+		})
+	}
+}
+
+func TestCompletion_EveryShellCompletesShellNames(t *testing.T) {
+	for _, sm := range shellMarkers {
+		t.Run(sm.shell, func(t *testing.T) {
+			output := captureStdout(t, func() {
+				if err := Completion(sm.shell); err != nil {
+					t.Fatalf("Completion(%q) returned error: %v", sm.shell, err)
+				}
+			})
+			if !strings.Contains(output, "completion") {
+				t.Errorf("%s script should complete the completion subcommand", sm.shell)
+			}
+			shellFlag := "--shell"
+			if sm.shell == "fish" {
+				shellFlag = "-l shell"
+			}
+			for _, name := range append(append([]string{}, supportedShells...), "pwsh", shellFlag) {
+				if !strings.Contains(output, name) {
+					t.Errorf("%s script should offer %q after completion", sm.shell, name)
+				}
+			}
+		})
+	}
+}
+
+func TestCompletion_DeprecatedAliasHidden(t *testing.T) {
+	for _, c := range subcommands {
+		if c == "autocompletion" {
+			t.Fatal("deprecated autocompletion alias must not be in the subcommands list")
+		}
+	}
+	for _, sm := range shellMarkers {
+		output := captureStdout(t, func() { _ = Completion(sm.shell) })
+		if strings.Contains(output, "autocompletion") {
+			t.Errorf("%s script must not offer the deprecated autocompletion alias", sm.shell)
+		}
+	}
+	if AutocompletionDeprecation != "helm-env: 'autocompletion' is deprecated; use 'helm-env completion'" {
+		t.Errorf("unexpected deprecation text %q", AutocompletionDeprecation)
+	}
+}
+
+func TestCompletion_PwshAlias(t *testing.T) {
+	output := captureStdout(t, func() {
+		if err := Completion("pwsh"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+	if !strings.Contains(output, "Register-ArgumentCompleter") {
+		t.Errorf("pwsh should emit the powershell script; got:\n%s", output)
+	}
+}
+
+func TestParseCompletionArgs(t *testing.T) {
+	cases := []struct {
+		name      string
+		args      []string
+		wantShell string
+		wantHelp  bool
+		wantErr   bool
+	}{
+		{"none", nil, "", false, false},
+		{"positional", []string{"zsh"}, "zsh", false, false},
+		{"--shell", []string{"--shell", "fish"}, "fish", false, false},
+		{"--shell=", []string{"--shell=pwsh"}, "pwsh", false, false},
+		{"same twice", []string{"bash", "--shell", "bash"}, "bash", false, false},
+		{"conflict", []string{"bash", "--shell", "zsh"}, "", false, true},
+		{"missing value", []string{"--shell"}, "", false, true},
+		{"unknown flag", []string{"--bogus"}, "", false, true},
+		{"-h", []string{"zsh", "-h"}, "", true, false},
+		{"--help", []string{"--help"}, "", true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			shell, help, err := ParseCompletionArgs(tc.args)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if shell != tc.wantShell || help != tc.wantHelp {
+				t.Fatalf("got (%q, %v), want (%q, %v)", shell, help, tc.wantShell, tc.wantHelp)
 			}
 		})
 	}

@@ -22,6 +22,10 @@ const (
 
 	// SourceGlobal is $HELMENV_ROOT/version.
 	SourceGlobal VersionSource = "global"
+
+	// SourceArgument is a spec passed explicitly on the command line
+	// (e.g. `helm-env resolve ~3.14`).
+	SourceArgument VersionSource = "argument"
 )
 
 // NotInstalledError is returned by ResolveConcreteVersion when a version
@@ -75,6 +79,18 @@ func ResolveConcreteVersion() (string, error) {
 		return "", err
 	}
 	return matchAgainstInstalled(raw, deriveSource())
+}
+
+// ResolveSpec matches an explicit version spec (exact, partial, alias or
+// range) against installed versions on disk and returns the concrete
+// installed version.  It ignores the shell/local/global configuration.  If
+// nothing installed matches, it returns a *NotInstalledError with
+// Source == SourceArgument.
+func ResolveSpec(spec string) (string, error) {
+	if spec == "" {
+		return "", fmt.Errorf("version spec must not be empty")
+	}
+	return matchAgainstInstalled(spec, SourceArgument)
 }
 
 // ResolveVersionTraced is like ResolveConcreteVersion but also returns a

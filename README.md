@@ -133,15 +133,19 @@ Full reference: [docs/cli-reference.md](docs/cli-reference.md)
 | `helm-env status` | Show current environment status |
 | `helm-env install [VERSION]` | Install a specific version (or latest) |
 | `helm-env uninstall VERSION` | Uninstall a specific version |
-| `helm-env exec [--auto\|--no-auto] VERSION CMD` | Run a command using a specific helm version |
+| `helm-env exec [--auto\|--no-auto] SPEC [--] ARGS...` | Run helm with a specific version; exits with helm's exit code |
 | `helm-env shell [VERSION]` | Set/show shell version (`HELMENV_VERSION`) |
 | `helm-env local [VERSION]` | Set/show local version (`.helm-version`) |
 | `helm-env global [VERSION]` | Set/show global version (`$HELMENV_ROOT/version`) |
 | `helm-env which [--explain]` | Print path to active helm binary (optionally with resolution trace) |
-| `helm-env resolve` | Resolve the active constraint and print the concrete installed version |
-| `helm-env prune [--keep N] [--older-than DUR] [--dry-run]` | Remove old installed versions |
-| `helm-env doctor` | Run diagnostics against the helm-env installation |
+| `helm-env resolve [SPEC] [--install] [-s]` | Resolve a spec (default: the active one) to a concrete version |
+| `helm-env prune [--keep-last N] [--older-than DUR] [--dry-run] [--yes]` | Remove old installed versions (dry run unless `--yes`) |
+| `helm-env doctor [--fix]` | Run diagnostics; `--fix` regenerates the shim |
+| `helm-env completion [SHELL] [--shell SHELL]` | Print a completion script (bash, zsh, fish, powershell/pwsh) |
+| `helm-env upgrade` | Upgrade helm-env itself to the latest GitHub release |
 | `helm-env version` | Print helm-env version |
+
+Every command accepts `-h`/`--help`.
 
 ## Version strings
 
@@ -159,7 +163,7 @@ Every version slot (`HELMENV_VERSION`, `.helm-version`, `$HELMENV_ROOT/version`,
 
 ## Auto-install
 
-Set `HELMENV_AUTO_INSTALL` to a truthy value (`1`, `true`, `yes`, `on`) and `helm-env` will transparently install missing helm versions when they are first resolved. Per-invocation overrides for `helm-env exec`:
+Set `HELMENV_AUTO_INSTALL` to a truthy value (`1`, `true`, `yes`, `on`) and `helm-env` will transparently install missing helm versions when they are first resolved (by the shim, `resolve` or `exec`). `helm-env resolve --install` does the same for one call. Per-invocation overrides for `helm-env exec`:
 
 - `--auto` → force auto-install for this call.
 - `--no-auto` → disable auto-install for this call even if the env var is set.
@@ -186,7 +190,7 @@ Add the following to your `~/.bashrc`:
 # helm-env setup
 export HELMENV_ROOT="$HOME/.helmenv"
 eval "$(helm-env init)"
-source <(helm-env autocompletion bash)
+source <(helm-env completion bash)
 ```
 
 ### Zsh
@@ -197,7 +201,7 @@ Add the following to your `~/.zshrc`:
 # helm-env setup
 export HELMENV_ROOT="$HOME/.helmenv"
 eval "$(helm-env init)"
-eval "$(helm-env autocompletion zsh)"
+eval "$(helm-env completion zsh)"
 ```
 
 ### Fish
@@ -208,7 +212,7 @@ Add the following to your `~/.config/fish/config.fish`:
 # helm-env setup
 set -gx HELMENV_ROOT "$HOME/.helmenv"
 helm-env init | source
-helm-env autocompletion fish | source
+helm-env completion fish | source
 ```
 
 ### PowerShell
@@ -216,8 +220,10 @@ helm-env autocompletion fish | source
 Append the completion script to your profile once:
 
 ```powershell
-helm-env autocompletion powershell >> $PROFILE
+helm-env completion powershell >> $PROFILE
 ```
+
+`helm-env autocompletion` is a deprecated alias for `helm-env completion`; it still works but prints a deprecation warning to stderr.
 
 ## Release source
 

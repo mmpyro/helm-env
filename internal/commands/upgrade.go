@@ -13,6 +13,22 @@ import (
 
 const helmenvRepo = "mmpyro/helm-env"
 
+// UpgradeHelp prints help for the upgrade command.
+func UpgradeHelp() {
+	fmt.Println(`Usage: helm-env upgrade
+
+Upgrade helm-env itself to the latest release published at
+https://github.com/` + helmenvRepo + `.
+
+The latest release is fetched from the GitHub API, the matching binary for the
+current OS/architecture is downloaded, and the running helm-env binary is
+replaced atomically. Nothing happens if the installed build is already up to
+date (dev builds always upgrade).
+
+Flags:
+  -h, --help   Show this help message (never triggers an upgrade).`)
+}
+
 // Upgrade downloads the latest stable helm-env release from GitHub and replaces
 // the current binary in-place using an atomic rename.
 func Upgrade() error {

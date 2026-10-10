@@ -19,16 +19,21 @@ func PruneHelp() {
 Remove installed helm versions that are no longer needed.
 
 Flags:
-  --keep N          Keep the N newest installed versions.
+  --keep-last N     Keep the N newest installed versions.
+  --keep N          Deprecated alias for --keep-last.
   --older-than DUR  Remove versions whose helm binary mtime is older than DUR.
                     Accepts Go duration strings (e.g. 30m, 24h) plus "<N>d" for
                     whole days.
   --dry-run         Print what would be removed without touching the disk.
+                    This is the DEFAULT; use --yes to apply.
+  --yes             Actually remove the selected versions.
   -h, --help        Show this help message.
 
-When --keep and --older-than are both supplied, a version must satisfy BOTH
-rules to be kept.  The currently-resolved version is always protected and
-will be skipped with a warning if it would otherwise be removed.`)
+At least one of --keep-last or --older-than is required.  When both are
+supplied, a version must satisfy BOTH rules to be kept.  The currently-resolved
+version is always protected and will be skipped with a warning if it would
+otherwise be removed.  When both --dry-run and --yes are passed, --dry-run
+wins.`)
 }
 
 // Prune implements the `helm-env prune` command.
@@ -37,16 +42,19 @@ will be skipped with a warning if it would otherwise be removed.`)
 //	olderThan  Remove versions whose binary mtime is older than the parsed
 //	           duration.  Empty string disables this check.
 //	dryRun     Only print what would happen.
+//	yes        Actually remove.  Without it Prune is a dry run; dryRun wins
+//	           when both are set.
 //
 // Returns a non-nil error on bad flags, when helm-env is not initialized,
 // or on filesystem errors.
-func Prune(keep int, olderThan string, dryRun bool) error {
+func Prune(keep int, olderThan string, dryRun, yes bool) error {
 	if err := config.RequireInit(); err != nil {
 		return err
 	}
 	if keep < 0 {
-		return fmt.Errorf("--keep must be >= 0")
+		return fmt.Errorf("--keep-last must be >= 0")
 	}
+	dryRun = dryRun || !yes
 
 	var olderThanDur time.Duration
 	hasOlderThan := olderThan != ""
@@ -58,7 +66,7 @@ func Prune(keep int, olderThan string, dryRun bool) error {
 		olderThanDur = d
 	}
 	if !hasOlderThan && keep == 0 {
-		return fmt.Errorf("at least one of --keep or --older-than is required")
+		return fmt.Errorf("at least one of --keep-last or --older-than is required")
 	}
 
 	installed, err := config.InstalledVersions()
@@ -115,6 +123,7 @@ func Prune(keep int, olderThan string, dryRun bool) error {
 	// Protect the currently-resolved version.
 	activeVersion, _ := config.ResolveConcreteVersion()
 
+	wouldPrune := 0
 	for _, v := range sorted {
 		if keepSet[v] {
 			continue
@@ -125,6 +134,7 @@ func Prune(keep int, olderThan string, dryRun bool) error {
 		}
 		if dryRun {
 			fmt.Printf("[dry-run] would prune %s\n", v)
+			wouldPrune++
 			continue
 		}
 		fmt.Printf("pruning %s\n", v)
@@ -135,6 +145,9 @@ func Prune(keep int, olderThan string, dryRun bool) error {
 		if err := os.RemoveAll(versionDir); err != nil {
 			return fmt.Errorf("failed to remove %s: %w", versionDir, err)
 		}
+	}
+	if wouldPrune > 0 && !yes {
+		fmt.Println("Dry run: nothing was removed. Re-run with --yes to prune.")
 	}
 	return nil
 }

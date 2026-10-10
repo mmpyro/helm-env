@@ -11,6 +11,9 @@ import (
 // subcommands is the central list of top-level helm-env commands used by all
 // shell completion generators. The order matches the dispatch order in
 // cmd/helm-env/main.go. Keep this slice in sync with the dispatch switch.
+//
+// The deprecated `autocompletion` alias is intentionally absent: it is still
+// dispatched by main.go but hidden from help and completion lists.
 var subcommands = []string{
 	"help",
 	"version",
@@ -25,7 +28,7 @@ var subcommands = []string{
 	"global",
 	"which",
 	"upgrade",
-	"autocompletion",
+	"completion",
 	"status",
 	"resolve",
 	"prune",
@@ -34,15 +37,20 @@ var subcommands = []string{
 }
 
 // supportedShells is the ordered list of shells for which helm-env can emit a
-// completion script. Used for help text and error messages.
+// completion script. Used for help text, error messages and the shell-name
+// completions offered after `helm-env completion`.
 var supportedShells = []string{"bash", "zsh", "fish", "powershell"}
+
+// AutocompletionDeprecation is printed to stderr when the deprecated
+// `autocompletion` alias is used instead of `completion`.
+const AutocompletionDeprecation = "helm-env: 'autocompletion' is deprecated; use 'helm-env completion'"
 
 // versionCompletingSubcommands are the subcommands that accept an installed
 // helm version as an argument. Their completion is populated by invoking
 // `helm-env list` at completion time.
 //
-// `exec` is intentionally omitted here: it has its own completion case that
-// combines installed versions with the --auto / --no-auto flags.
+// `exec` and `resolve` are intentionally omitted here: they have their own
+// completion cases that combine installed versions with their flags.
 var versionCompletingSubcommands = []string{"uninstall", "shell", "local", "global"}
 
 // prereleaseSubcommands are the subcommands that accept the --prerelease flag.
@@ -67,15 +75,55 @@ func DetectShell() string {
 	return ""
 }
 
-// Autocompletion prints a shell completion script for helm-env to stdout.
+// ParseCompletionArgs parses the arguments of `helm-env completion` (and the
+// deprecated `autocompletion` alias): an optional positional SHELL and/or
+// `--shell SHELL` / `--shell=SHELL`. help reports whether -h/--help was
+// seen, in which case the caller must print CompletionHelp and stop.
+func ParseCompletionArgs(args []string) (shell string, help bool, err error) {
+	set := func(v string) error {
+		if shell != "" && !strings.EqualFold(shell, v) {
+			return fmt.Errorf("conflicting shells %q and %q", shell, v)
+		}
+		shell = v
+		return nil
+	}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "-h" || arg == "--help":
+			return "", true, nil
+		case arg == "--shell":
+			if i+1 >= len(args) {
+				return "", false, fmt.Errorf("--shell requires a value")
+			}
+			i++
+			if err := set(args[i]); err != nil {
+				return "", false, err
+			}
+		case strings.HasPrefix(arg, "--shell="):
+			if err := set(strings.TrimPrefix(arg, "--shell=")); err != nil {
+				return "", false, err
+			}
+		case strings.HasPrefix(arg, "-"):
+			return "", false, fmt.Errorf("unknown flag %q for completion", arg)
+		default:
+			if err := set(arg); err != nil {
+				return "", false, err
+			}
+		}
+	}
+	return shell, false, nil
+}
+
+// Completion prints a shell completion script for helm-env to stdout.
 //
-// When shell is empty, Autocompletion detects the current shell from $SHELL
+// When shell is empty, Completion detects the current shell from $SHELL
 // (falling back to bash) and writes a short notice to stderr so the user still
 // sees which script was generated when the output is piped to `source`.
 //
-// When shell is explicitly set it must be one of "bash", "zsh", "fish" or
-// "powershell"; any other value returns an error.
-func Autocompletion(shell string) error {
+// When shell is explicitly set it must be one of "bash", "zsh", "fish",
+// "powershell" or the "pwsh" alias; any other value returns an error.
+func Completion(shell string) error {
 	autoDetected := false
 	if shell == "" {
 		autoDetected = true
@@ -86,6 +134,9 @@ func Autocompletion(shell string) error {
 	}
 
 	shell = strings.ToLower(shell)
+	if shell == "pwsh" {
+		shell = "powershell"
+	}
 
 	if autoDetected {
 		fmt.Fprintf(os.Stderr, "# helm-env: generating completion for %s\n", shell)
@@ -101,34 +152,39 @@ func Autocompletion(shell string) error {
 	case "powershell":
 		return printPowershellCompletion(os.Stdout)
 	default:
-		return fmt.Errorf("unsupported shell %q: supported shells are %s", shell, strings.Join(supportedShells, ", "))
+		return fmt.Errorf("unsupported shell %q: supported shells are %s (or pwsh)", shell, strings.Join(supportedShells, ", "))
 	}
 }
 
-// AutocompletionHelp prints help for the autocompletion command.
-func AutocompletionHelp() {
-	fmt.Printf(`Usage: helm-env autocompletion [SHELL]
+// CompletionHelp prints help for the completion command.
+func CompletionHelp() {
+	fmt.Printf(`Usage: helm-env completion [SHELL] [--shell SHELL]
 
 Generate a shell completion script for helm-env.
 
-SHELL may be one of: %s.
+SHELL may be one of: %s (pwsh is accepted as an alias for
+powershell). It can be given positionally or with --shell.
 
 When SHELL is omitted, helm-env detects your current shell from the $SHELL
 environment variable (falling back to bash). PowerShell is never auto-detected
 and must always be requested explicitly.
 
+Flags:
+  --shell SHELL  Shell to generate the script for.
+  -h, --help     Show this help message.
+
 Examples:
   # bash (one-shot, current session):
-  source <(helm-env autocompletion bash)
+  source <(helm-env completion bash)
 
   # zsh:
-  eval "$(helm-env autocompletion zsh)"
+  eval "$(helm-env completion zsh)"
 
   # fish:
-  helm-env autocompletion fish | source
+  helm-env completion fish | source
 
   # powershell (save to profile):
-  helm-env autocompletion powershell >> $PROFILE
+  helm-env completion powershell >> $PROFILE
 `, strings.Join(supportedShells, ", "))
 }
 
@@ -143,6 +199,7 @@ func printBashCompletion(w io.Writer) error {
 	cmds := strings.Join(subcommands, " ")
 	versionCmds := joinBashCase(versionCompletingSubcommands)
 	prereleaseCmds := joinBashCase(prereleaseSubcommands)
+	shells := completionShellNames()
 
 	script := `# bash completion for helm-env
 _helm_env_completions() {
@@ -169,7 +226,7 @@ _helm_env_completions() {
             # exec takes an installed version plus optional --auto / --no-auto
             local versions
             versions=$(helm-env list 2>/dev/null)
-            COMPREPLY=( $(compgen -W "${versions} --auto --no-auto" -- "${cur}") )
+            COMPREPLY=( $(compgen -W "${versions} --auto --no-auto -h --help" -- "${cur}") )
             return 0
             ;;
         install)
@@ -185,15 +242,22 @@ _helm_env_completions() {
             return 0
             ;;
         prune)
-            COMPREPLY=( $(compgen -W "--keep --older-than --dry-run -h --help" -- "${cur}") )
+            COMPREPLY=( $(compgen -W "--keep-last --older-than --dry-run --yes -h --help" -- "${cur}") )
             return 0
             ;;
         resolve)
-            COMPREPLY=( $(compgen -W "--concrete -h --help" -- "${cur}") )
+            # resolve takes an optional version spec plus its flags
+            local versions
+            versions=$(helm-env list 2>/dev/null)
+            COMPREPLY=( $(compgen -W "${versions} --install -s --silent -h --help" -- "${cur}") )
+            return 0
+            ;;
+        completion|--shell)
+            COMPREPLY=( $(compgen -W "` + shells + ` --shell -h --help" -- "${cur}") )
             return 0
             ;;
         doctor)
-            COMPREPLY=( $(compgen -W "-h --help" -- "${cur}") )
+            COMPREPLY=( $(compgen -W "--fix -h --help" -- "${cur}") )
             return 0
             ;;
     esac
@@ -208,6 +272,7 @@ _helm_env_complete() { _helm_env_completions "$@"; }
 
 // printZshCompletion writes a zsh completion script for helm-env.
 func printZshCompletion(w io.Writer) error {
+	shells := completionShellNames()
 	var describe strings.Builder
 	for _, c := range subcommands {
 		describe.WriteString("    '")
@@ -249,7 +314,8 @@ _helm_env() {
           _helm_env_list_versions
           _arguments \
             '--auto[force auto-install of missing versions]' \
-            '--no-auto[disable auto-install even when HELMENV_AUTO_INSTALL is set]'
+            '--no-auto[disable auto-install even when HELMENV_AUTO_INSTALL is set]' \
+            '(-h --help)'{-h,--help}'[show help]'
           ;;
         install)
           _arguments \
@@ -268,18 +334,29 @@ _helm_env() {
           ;;
         prune)
           _arguments \
-            '--keep[keep the N newest installed versions]:count:' \
+            '--keep-last[keep the N newest installed versions]:count:' \
             '--older-than[prune versions older than DURATION (e.g. 180d, 24h)]:duration:' \
-            '--dry-run[print what would be pruned without removing]' \
+            '--dry-run[print what would be pruned without removing (default)]' \
+            '--yes[actually remove the selected versions]' \
             '(-h --help)'{-h,--help}'[show help]'
           ;;
         resolve)
+          _helm_env_list_versions
           _arguments \
-            '--concrete[print the resolved concrete installed version]' \
+            '--install[install the best remote match when nothing installed matches]' \
+            '(-s --silent)'{-s,--silent}'[suppress auto-install notices]' \
+            '(-h --help)'{-h,--help}'[show help]'
+          ;;
+        completion)
+          _arguments \
+            '1:shell:(` + shells + `)' \
+            '--shell[shell to generate the script for]:shell:(` + shells + `)' \
             '(-h --help)'{-h,--help}'[show help]'
           ;;
         doctor)
-          _arguments '(-h --help)'{-h,--help}'[show help]'
+          _arguments \
+            '--fix[regenerate the shim and repair what can be repaired]' \
+            '(-h --help)'{-h,--help}'[show help]'
           ;;
       esac
       ;;
@@ -322,7 +399,8 @@ func printFishCompletion(w io.Writer) error {
 	b.WriteString("# exec: installed versions + auto-install flags\n")
 	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from exec' -a '(__helm_env_installed_versions)'\n")
 	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from exec' -l auto -d 'Force auto-install of missing versions'\n")
-	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from exec' -l no-auto -d 'Disable auto-install'\n\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from exec' -l no-auto -d 'Disable auto-install'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from exec' -s h -l help -d 'Show help'\n\n")
 
 	// install flags.
 	b.WriteString("# install flags\n")
@@ -347,18 +425,34 @@ func printFishCompletion(w io.Writer) error {
 
 	// prune flags.
 	b.WriteString("# prune flags\n")
-	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l keep -d 'Keep the N newest installed versions'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l keep-last -d 'Keep the N newest installed versions'\n")
 	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l older-than -d 'Prune versions older than DURATION'\n")
-	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l dry-run -d 'Print what would be pruned without removing'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l dry-run -d 'Print what would be pruned without removing (default)'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -l yes -d 'Actually remove the selected versions'\n")
 	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from prune' -s h -l help -d 'Show help'\n\n")
 
 	// resolve flags.
 	b.WriteString("# resolve flags\n")
-	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from resolve' -l concrete -d 'Print the resolved concrete installed version'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from resolve' -a '(__helm_env_installed_versions)'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from resolve' -l install -d 'Install the best remote match when nothing installed matches'\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from resolve' -s s -l silent -d 'Suppress auto-install notices'\n")
 	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from resolve' -s h -l help -d 'Show help'\n\n")
+
+	// completion: shell names + flags.
+	b.WriteString("# completion shells and flags\n")
+	fmt.Fprintf(&b,
+		"complete -c helm-env -f -n '__fish_seen_subcommand_from completion' -a %q\n",
+		completionShellNames(),
+	)
+	fmt.Fprintf(&b,
+		"complete -c helm-env -f -n '__fish_seen_subcommand_from completion' -l shell -x -a %q -d 'Shell to generate the script for'\n",
+		completionShellNames(),
+	)
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from completion' -s h -l help -d 'Show help'\n\n")
 
 	// doctor flags.
 	b.WriteString("# doctor flags\n")
+	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from doctor' -l fix -d 'Regenerate the shim and repair what can be repaired'\n")
 	b.WriteString("complete -c helm-env -f -n '__fish_seen_subcommand_from doctor' -s h -l help -d 'Show help'\n")
 
 	_, err := fmt.Fprint(w, b.String())
@@ -371,6 +465,7 @@ func printPowershellCompletion(w io.Writer) error {
 	cmds := `'` + strings.Join(subcommands, `','`) + `'`
 	versionCmds := `'` + strings.Join(versionCompletingSubcommands, `','`) + `'`
 	prereleaseCmds := `'` + strings.Join(prereleaseSubcommands, `','`) + `'`
+	shells := `'` + strings.Join(strings.Fields(completionShellNames()), `','`) + `'`
 
 	script := `# PowerShell completion for helm-env
 Register-ArgumentCompleter -CommandName helm-env -Native -ScriptBlock {
@@ -425,7 +520,7 @@ Register-ArgumentCompleter -CommandName helm-env -Native -ScriptBlock {
         } catch {
             $versions = @()
         }
-        $candidates = @($versions) + @('--auto', '--no-auto')
+        $candidates = @($versions) + @('--auto', '--no-auto', '-h', '--help')
         $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
             [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
         }
@@ -440,21 +535,35 @@ Register-ArgumentCompleter -CommandName helm-env -Native -ScriptBlock {
     }
 
     if ($subcommand -eq 'prune') {
-        @('--keep', '--older-than', '--dry-run', '-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        @('--keep-last', '--older-than', '--dry-run', '--yes', '-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
             [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
         }
         return
     }
 
     if ($subcommand -eq 'resolve') {
-        @('--concrete', '-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
+        # resolve takes an optional version spec plus its flags.
+        try {
+            $versions = & helm-env list 2>$null
+        } catch {
+            $versions = @()
+        }
+        $candidates = @($versions) + @('--install', '-s', '--silent', '-h', '--help')
+        $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        }
+        return
+    }
+
+    if ($subcommand -eq 'completion') {
+        @(` + shells + `, '--shell', '-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
         }
         return
     }
 
     if ($subcommand -eq 'doctor') {
-        @('-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        @('--fix', '-h', '--help') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
             [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
         }
         return
@@ -463,6 +572,12 @@ Register-ArgumentCompleter -CommandName helm-env -Native -ScriptBlock {
 `
 	_, err := fmt.Fprint(w, script)
 	return err
+}
+
+// completionShellNames returns the space-separated shell names offered after
+// `helm-env completion`: every supported shell plus the pwsh alias.
+func completionShellNames() string {
+	return strings.Join(supportedShells, " ") + " pwsh"
 }
 
 // joinBashCase joins subcommands for a bash case pattern (e.g. "a|b|c").
@@ -514,7 +629,7 @@ func subcommandDescription(cmd string) string {
 		return "Print path to the active helm binary"
 	case "upgrade":
 		return "Upgrade helm-env to the latest version"
-	case "autocompletion":
+	case "completion":
 		return "Generate shell completion script"
 	case "status":
 		return "Show current helm-env environment status"

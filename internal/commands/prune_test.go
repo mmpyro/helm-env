@@ -63,14 +63,14 @@ func TestPrune_RequiresFlags(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "versions"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := Prune(0, "", false); err == nil {
+	if err := Prune(0, "", false, true); err == nil {
 		t.Fatal("expected error when neither --keep nor --older-than supplied")
 	}
 }
 
 func TestPrune_NotInitialized(t *testing.T) {
 	t.Setenv("HELMENV_ROOT", "")
-	if err := Prune(1, "", false); err == nil {
+	if err := Prune(1, "", false, true); err == nil {
 		t.Fatal("expected error when not initialized")
 	}
 }
@@ -85,7 +85,7 @@ func TestPrune_Keep(t *testing.T) {
 	}
 
 	out := captureStdout(t, func() {
-		if err := Prune(2, "", false); err != nil {
+		if err := Prune(2, "", false, true); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -116,7 +116,7 @@ func TestPrune_OlderThan(t *testing.T) {
 	seedPruneVersion(t, root, "3.12.0", old)
 	seedPruneVersion(t, root, "3.13.0", recent)
 
-	if err := Prune(0, "24h", false); err != nil {
+	if err := Prune(0, "24h", false, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -136,7 +136,7 @@ func TestPrune_DryRun(t *testing.T) {
 	seedPruneVersion(t, root, "3.12.0", old)
 
 	out := captureStdout(t, func() {
-		if err := Prune(0, "24h", true); err != nil {
+		if err := Prune(0, "24h", true, false); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -163,7 +163,7 @@ func TestPrune_CombinedKeepAndOlderThan(t *testing.T) {
 	// --keep 2 would keep 3.14.0 and 3.13.0 (newest 2). --older-than 24h
 	// would keep 3.13.0 and 3.14.0 (recent).  BOTH rules keep the two
 	// recents → 3.12.0 should be pruned.
-	if err := Prune(2, "24h", false); err != nil {
+	if err := Prune(2, "24h", false, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "versions", "3.12.0")); !os.IsNotExist(err) {
@@ -186,7 +186,7 @@ func TestPrune_ProtectsActiveVersion(t *testing.T) {
 	seedPruneVersion(t, root, "3.13.0", old)
 
 	stdout, stderr := captureBoth(t, func() {
-		if err := Prune(0, "24h", false); err != nil {
+		if err := Prune(0, "24h", false, true); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -202,4 +202,69 @@ func TestPrune_ProtectsActiveVersion(t *testing.T) {
 		t.Fatal("expected 3.13.0 to be pruned")
 	}
 	_ = stdout
+}
+
+func TestPrune_DryRunByDefault(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HELMENV_ROOT", root)
+	t.Setenv("HELMENV_VERSION", "")
+	old := time.Now().Add(-48 * time.Hour)
+	seedPruneVersion(t, root, "3.12.0", old)
+
+	out := captureStdout(t, func() {
+		if err := Prune(0, "24h", false, false); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "[dry-run] would prune 3.12.0") {
+		t.Fatalf("expected dry-run output without --yes, got %q", out)
+	}
+	if !strings.Contains(out, "--yes") {
+		t.Errorf("expected a hint to re-run with --yes, got %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "versions", "3.12.0")); err != nil {
+		t.Fatal("prune without --yes must not remove anything")
+	}
+}
+
+func TestPrune_DryRunWinsOverYes(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HELMENV_ROOT", root)
+	t.Setenv("HELMENV_VERSION", "")
+	old := time.Now().Add(-48 * time.Hour)
+	seedPruneVersion(t, root, "3.12.0", old)
+
+	out := captureStdout(t, func() {
+		if err := Prune(0, "24h", true, true); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "[dry-run] would prune 3.12.0") {
+		t.Fatalf("expected dry-run output, got %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "versions", "3.12.0")); err != nil {
+		t.Fatal("--dry-run must win over --yes")
+	}
+}
+
+func TestPrune_InvalidOlderThan(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HELMENV_ROOT", root)
+	if err := os.MkdirAll(filepath.Join(root, "versions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Prune(0, "bogus", false, true); err == nil {
+		t.Fatal("expected error for --older-than bogus")
+	}
+}
+
+func TestPruneHelp_DocumentsNewFlags(t *testing.T) {
+	out := captureStdout(t, PruneHelp)
+	for _, want := range []string{"--keep-last N", "--keep N", "Deprecated", "--yes", "DEFAULT"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("prune help missing %q; got:\n%s", want, out)
+		}
+	}
 }

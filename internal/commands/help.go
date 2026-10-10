@@ -19,14 +19,16 @@ Commands:
   global          Set or show the global version of helm cli
   latest          Print the latest available version of helm cli from GitHub releases
   which           Print the full path to the active helm binary (--explain for a trace)
-  resolve         Resolve the active version against installed versions
-  exec            Run a command using a specific helm version (--auto / --no-auto)
-  prune           Remove old installed versions (--keep N / --older-than DUR / --dry-run)
+  resolve         Resolve a version spec (default: active) to a concrete version (--install / -s)
+  exec            Run helm with a specific version: exec [--auto|--no-auto] <spec> [--] <args>
+  prune           Remove old installed versions (--keep-last N / --older-than DUR; dry run unless --yes)
   doctor          Run diagnostics against the helm-env installation
   status          Show current helm-env environment status
   upgrade         Upgrade helm-env to the latest version
-  autocompletion  Generate shell autocompletion script
-  version         Print the version of helm-env`)
+  completion      Generate a shell completion script (bash, zsh, fish, powershell)
+  version         Print the version of helm-env
+
+Run 'helm-env <command> --help' for details on a command.`)
 }
 
 // InstallHelp prints help for the install command.
