@@ -10,6 +10,26 @@ import (
 	"github.com/user/helm-env/internal/semver"
 )
 
+// ExecHelp prints help for the exec command.
+func ExecHelp() {
+	fmt.Println(`Usage: helm-env exec [--auto|--no-auto] <spec> [--] <helm-args...>
+
+Run helm with a specific version without changing the active version.
+
+<spec> may be an exact version, a partial version, an alias or a range; it is
+resolved against installed versions first.  One leading "--" after <spec> is
+stripped, so "helm-env exec 3.14 -- version" runs "helm version".
+
+The child runs with HELMENV_VERSION set to the resolved version. Its exit code
+is passed through unchanged.
+
+Flags:
+  --auto       Install the best remote match if nothing installed matches.
+  --no-auto    Never auto-install, even when HELMENV_AUTO_INSTALL is set.
+  -h, --help   Show this help message (only before <spec>; after it, flags
+               belong to helm).`)
+}
+
 // Exec runs a specific helm version without changing the active version.
 // It preserves the historical "exact version required" semantics for
 // backwards compatibility with existing callers; use ExecWithOptions for
@@ -27,6 +47,8 @@ func Exec(version string, args []string) error {
 //     (fuzzy / alias / range support via Feature 1).
 //   - If no installed version matches AND auto-install is enabled, resolve
 //     against the remote release list and install the match before exec.
+//
+// One leading "--" in args is stripped before running helm.
 func ExecWithOptions(version string, args []string, auto AutoInstallMode) error {
 	if err := config.RequireInit(); err != nil {
 		return err
@@ -34,6 +56,9 @@ func ExecWithOptions(version string, args []string, auto AutoInstallMode) error 
 
 	if version == "" {
 		return fmt.Errorf("version not specified. Usage: helm-env exec <version> <command> [args...]")
+	}
+	if len(args) > 0 && args[0] == "--" {
+		args = args[1:]
 	}
 	if len(args) == 0 {
 		return fmt.Errorf("command not specified. Usage: helm-env exec <version> <command> [args...]")
@@ -54,6 +79,8 @@ func ExecWithOptions(version string, args []string, auto AutoInstallMode) error 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), fmt.Sprintf("HELMENV_VERSION=%s", resolved))
+	// A non-zero child exit surfaces as *exec.ExitError; main passes its
+	// exit code through instead of printing it.
 	return cmd.Run()
 }
 

@@ -6,7 +6,8 @@ Conventions:
 
 - Commands return exit code `0` on success.
 - On errors, commands typically print an error message to stderr and exit with code `1`.
-- Some commands print help and exit `0`.
+- Every command accepts `-h`/`--help`: it prints that command's help and exits `0` without doing anything else (for example, `helm-env upgrade --help` never upgrades).
+- `helm-env exec` exits with the exit code of the helm process it runs.
 
 ## Global usage
 
@@ -14,7 +15,7 @@ Conventions:
 helm-env <command> [arguments]
 ```
 
-Top-level help is available via `helm-env help`, `helm-env --help`, or `helm-env -h`.
+Top-level help is available via `helm-env help`, `helm-env --help`, or `helm-env -h`. Per-command help is available via `helm-env <command> --help`.
 
 ## Environment variables
 
@@ -35,7 +36,15 @@ Typically set via `helm-env shell` after enabling shell integration with `eval "
 Optional. When set to a truthy value (`1`, `true`, `yes`, `on`, case-insensitive), `helm-env` will *automatically install* a missing helm version whenever the resolver (shim, `exec`, `which`, etc.) encounters a version/constraint that is not yet present under `$HELMENV_ROOT/versions/`.
 
 The installation is silent (equivalent to `helm-env install --silent <version>`).
-To override at the command line, see the `--auto` and `--no-auto` flags on `helm-env exec`.
+To override at the command line, see the `--auto` and `--no-auto` flags on `helm-env exec`, and `--install` on `helm-env resolve`.
+
+### `HELMENV_CACHE_TTL`
+
+Optional. How long the cached release list (`$HELMENV_ROOT/cache/releases.json`) is considered fresh, as a Go duration (`30m`, `24h`). `0s` disables the cache. Default: `1h`. See [caching strategy](caching.md).
+
+### `SHELL`
+
+Optional. Read by `helm-env completion` to choose a shell when none is given.
 
 ## Version strings
 
@@ -184,7 +193,7 @@ helm-env list
 
 ### `list-remote`
 
-Purpose: List all available `helm` versions from GitHub tag v1.0.0 (newest to oldest).
+Purpose: List all available `helm` versions from GitHub releases (newest to oldest).
 
 This command does not require `HELMENV_ROOT` or initialization. If `HELMENV_ROOT` is set, results are persistently cached on disk (see [caching strategy](caching.md)).
 
@@ -216,7 +225,7 @@ helm-env list-remote --prerelease
 
 ### `latest`
 
-Purpose: Print the latest available `helm` version from GitHub tag v1.0.0.
+Purpose: Print the latest available `helm` version from GitHub releases.
 
 This command does not require `HELMENV_ROOT` or initialization. If `HELMENV_ROOT` is set, results are persistently cached on disk (see [caching strategy](caching.md)).
 
@@ -252,7 +261,7 @@ Purpose: Download and install an `helm` version into `$HELMENV_ROOT/versions/<ve
 
 If `<version>` is omitted, `helm-env` installs the latest stable version.
 
-The command displays a progress bar during the download and automatically verifies the integrity of the downloaded file using SHA256 checksums from the GitHub tag v1.0.0.
+The command displays a progress bar during the download and automatically verifies the integrity of the downloaded file using SHA256 checksums published alongside the release.
 
 Syntax:
 
@@ -294,7 +303,9 @@ Syntax:
 helm-env uninstall <version>
 ```
 
-Options/flags: none.
+Options/flags:
+
+- `-h`, `--help`: show command help and exit.
 
 Environment variables:
 
@@ -326,7 +337,9 @@ helm-env shell            # show
 helm-env shell <version>  # set
 ```
 
-Options/flags: none.
+Options/flags:
+
+- `-h`, `--help`: show command help and exit.
 
 Environment variables:
 
@@ -361,7 +374,9 @@ helm-env local            # show
 helm-env local <version>  # set
 ```
 
-Options/flags: none.
+Options/flags:
+
+- `-h`, `--help`: show command help and exit.
 
 Environment variables:
 
@@ -395,7 +410,9 @@ helm-env global            # show
 helm-env global <version>  # set
 ```
 
-Options/flags: none.
+Options/flags:
+
+- `-h`, `--help`: show command help and exit.
 
 Environment variables:
 
@@ -452,28 +469,35 @@ helm-env which --explain
 
 ### `resolve`
 
-Purpose: Print the concrete installed helm version produced by resolving the active version/constraint against `$HELMENV_ROOT/versions`.
+Purpose: Resolve a version spec to a concrete helm version and print only that version on stdout.
 
 Syntax:
 
 ```text
-helm-env resolve [--concrete]
+helm-env resolve [<spec>] [--install] [-s|--silent]
 ```
+
+- With no `<spec>`, the active spec is used (shell > local > global).
+- `<spec>` accepts every [version string](#version-strings) form: exact, partial, alias or range.
+- Installed versions are matched first. When nothing installed matches and `--install` (or `HELMENV_AUTO_INSTALL`) is set, the best remote match is installed and printed. Progress notices go to stderr, so stdout is always just the version.
 
 Options/flags:
 
-- `--concrete`: print only the concrete installed version (default; accepted for forward-compatibility).
+- `--install`: install the best remote match when nothing installed matches.
+- `-s`, `--silent`: suppress auto-install notices on stderr.
 - `-h`, `--help`: show command help and exit.
+- `--concrete`: legacy no-op, still accepted because shims generated by older releases pass it. Output is always concrete.
 
 Environment variables:
 
 - `HELMENV_ROOT` (required)
-- `HELMENV_VERSION` (optional)
+- `HELMENV_VERSION` (optional; used when no `<spec>` is given)
+- `HELMENV_AUTO_INSTALL` (optional; same as `--install`)
 
 Exit codes:
 
-- `0` when the active constraint resolves to an installed version.
-- `1` otherwise (not initialized, no version configured, or constraint resolves to a version that is not installed).
+- `0` when the spec resolves (or is installed with `--install`).
+- `1` otherwise (not initialized, no version configured, nothing matches, or the install fails).
 
 Example:
 
@@ -481,25 +505,38 @@ Example:
 # .helm-version contains "~3.14"; the installed versions include 3.14.0 and 3.14.5
 $ helm-env resolve
 3.14.5
+
+# explicit spec, ignoring the configured version
+$ helm-env resolve 3.14.0
+3.14.0
+
+# install the newest 3.15.x if nothing installed matches
+$ helm-env resolve --install --silent ~3.15
+3.15.4
 ```
 
-The shim uses `helm-env resolve --concrete` under the hood when the configured value is a constraint rather than an exact semver.
+The shim calls `helm-env resolve --concrete` when the configured value is a constraint rather than an installed exact version.
 
 ---
 
 ### `upgrade`
 
-Purpose: Download the tag v1.0.0 of `helm-env` from GitHub and replace the current binary in-place.
+Purpose: Upgrade `helm-env` itself. It fetches the latest release of [`mmpyro/helm-env`](https://github.com/mmpyro/helm-env/releases) from the GitHub API, downloads the binary for the current OS/architecture, and replaces the running binary in-place.
 
 Syntax:
 
 ```text
 helm-env upgrade
+helm-env upgrade -h|--help
 ```
 
-Options/flags: none.
+Options/flags:
 
-Environment variables: none (the binary path is auto-detected via `os.Executable()`).
+- `-h`, `--help`: show command help and exit. This never triggers an upgrade.
+
+Any other argument is rejected with exit code `1`.
+
+Environment variables: none. `upgrade` does not need `HELMENV_ROOT` and does not read any `HELMENV_*` variable. The binary path is auto-detected via `os.Executable()` (symlinks are followed).
 
 Exit codes:
 
@@ -527,13 +564,16 @@ Purpose: Run a specific version of `helm` for a single command without changing 
 Syntax:
 
 ```text
-helm-env exec [--auto|--no-auto] <version> <command> [args...]
+helm-env exec [--auto|--no-auto] <spec> [--] <helm-args...>
 ```
+
+`<helm-args...>` are passed to the resolved `helm` binary. One leading `--` after `<spec>` is stripped, so `helm-env exec 3.14 -- version` runs `helm version`. Flags after `<spec>` belong to helm.
 
 Options/flags:
 
 - `--auto`: enable auto-install for this invocation (installs the resolved version if it is not yet present on disk). Overrides `HELMENV_AUTO_INSTALL`.
 - `--no-auto`: disable auto-install for this invocation even if `HELMENV_AUTO_INSTALL` is set.
+- `-h`, `--help` (before `<spec>`): show command help and exit.
 
 Version resolution follows the general [version strings](#version-strings) rules: an exact installed version is used verbatim, otherwise the value is matched against the installed candidates (or, when auto-install is enabled, against the remote release list before installation).
 
@@ -545,14 +585,14 @@ Environment variables:
 
 Exit codes:
 
-- Exit code of the executed command.
-- `1` if the version is not installed (and auto-install is disabled) or initialization fails.
+- The exit code of `helm`, passed through unchanged (for example, `3` if helm exits `3`). No extra `exit status N` message is printed.
+- `1` if the version is not installed (and auto-install is disabled), no command is given, or initialization fails.
 
 Example:
 
 ```sh
 helm-env exec 3.14.0 version
-helm-env exec ~3.14 version
+helm-env exec ~3.14 -- version --short
 HELMENV_AUTO_INSTALL=1 helm-env exec 3.14.0 version
 helm-env exec --auto latest version
 ```
@@ -602,17 +642,23 @@ Purpose: Remove installed `helm` versions that are no longer needed.
 Syntax:
 
 ```text
-helm-env prune [--keep N] [--older-than DUR] [--dry-run]
+helm-env prune [--keep-last N] [--older-than DUR] [--dry-run] [--yes]
 ```
+
+**`prune` is a dry run by default.** It prints what it would remove and deletes nothing until you pass `--yes`.
 
 Options/flags:
 
-- `--keep N`: keep the N newest installed versions.
+- `--keep-last N`: keep the N newest installed versions.
+- `--keep N`: deprecated alias for `--keep-last`.
 - `--older-than DUR`: remove installed versions whose helm binary mtime is older than `DUR`. Accepts Go duration strings (e.g. `30m`, `24h`) plus a `<N>d` suffix for whole days.
-- `--dry-run`: print what would be removed without touching the disk.
+- `--dry-run`: print what would be removed without touching the disk (the default). Wins over `--yes` if both are given.
+- `--yes`: actually remove the selected versions.
 - `-h`, `--help`: show command help and exit.
 
-If both `--keep` and `--older-than` are supplied, a version must satisfy **BOTH** rules to be kept. The currently-resolved version is always protected (a warning is printed and the removal is skipped).
+At least one of `--keep-last` or `--older-than` is required. If both are supplied, a version must satisfy **BOTH** rules to be kept. The currently-resolved version (shell > local > global, so including a `.helm-version` in the current directory) is always protected: a warning is printed and the removal is skipped.
+
+Unlike `istioctl-env` and `vc-env`, `helm-env prune` selects versions by count and age only; it does not scan the disk for version files.
 
 Environment variables:
 
@@ -626,9 +672,10 @@ Exit codes:
 Example:
 
 ```sh
-helm-env prune --keep 3
-helm-env prune --older-than 30d
-helm-env prune --keep 2 --older-than 90d --dry-run
+helm-env prune --keep-last 3            # preview
+helm-env prune --keep-last 3 --yes      # remove
+helm-env prune --older-than 30d --yes
+helm-env prune --keep-last 2 --older-than 90d
 ```
 
 ---
@@ -640,15 +687,22 @@ Purpose: Run a set of diagnostic checks against the current `helm-env` installat
 Syntax:
 
 ```text
-helm-env doctor
+helm-env doctor [--fix]
 ```
+
+Options/flags:
+
+- `--fix`: before checking, create `$HELMENV_ROOT/versions` if missing, regenerate the shim, and make installed `helm` binaries executable. Each repair prints a `[FIX]` line. It never edits `PATH` or shell rc files.
+- `-h`, `--help`: show command help and exit.
+
+`helm-env doctor` has no `--deep` flag (unlike `istioctl-env`): installed binaries are verified against SHA256 checksums at install time only.
 
 Checks:
 
 1. `HELMENV_ROOT` is set.
 2. `$HELMENV_ROOT` exists and is writable.
 3. `$HELMENV_ROOT/versions` exists.
-4. `$HELMENV_ROOT/shims/helm` exists and is executable.
+4. `$HELMENV_ROOT/shims/helm` exists, is executable and matches what this `helm-env` would generate (`[FAIL]` on drift; fix with `--fix`).
 5. `$HELMENV_ROOT/shims` is on `$PATH` and appears before any other `helm` binary.
 6. The cache file (if present) is parseable JSON.
 7. Reachability of `https://github.com` and `https://get.helm.sh` (WARN on failure; never fatal).
@@ -668,22 +722,21 @@ helm-env doctor
 
 ---
 
-### `autocompletion`
+### `completion`
 
 Purpose: Generate a shell completion script for `helm-env`.
 
-Supported shells: `bash`, `zsh`, `fish`, `powershell`.
+Supported shells: `bash`, `zsh`, `fish`, `powershell` (`pwsh` is accepted as an alias).
 
-The script provides completion for subcommands and suggests installed versions
-for commands that accept a version argument (`uninstall`, `shell`, `local`,
-`global`, `exec`). For `install`, `-s`/`--silent` and `-h`/`--help` are
-suggested; for `list-remote` and `latest`, `--prerelease` and `--help` are
-suggested.
+The script completes subcommands and suggests installed versions for commands
+that take a version (`uninstall`, `shell`, `local`, `global`, `exec`,
+`resolve`), plus each command's flags. After `completion` it suggests the shell
+names and `--shell`.
 
 Syntax:
 
 ```text
-helm-env autocompletion [SHELL]
+helm-env completion [SHELL] [--shell SHELL]
 ```
 
 When `SHELL` is omitted, `helm-env` detects your current shell from the
@@ -693,32 +746,38 @@ is piped to `source`. PowerShell is never auto-detected and must be requested
 explicitly.
 
 Options/flags:
+- `--shell SHELL`: same as the positional `SHELL`
 - `-h`, `--help`: show command help and exit
 
 Environment variables:
-- `$SHELL` (optional; read for shell auto-detection when `SHELL` arg is omitted)
+- `$SHELL` (optional; read for shell auto-detection when no shell is given)
 
 Exit codes:
 - `0` on success.
 - `1` if an unsupported shell is requested.
 
+Deprecated alias: `helm-env autocompletion` still works with the same
+arguments, but prints `helm-env: 'autocompletion' is deprecated; use 'helm-env completion'`
+to stderr. It is hidden from help and completion lists and will be removed in a
+future release.
+
 Examples:
 
 ```sh
 # bash — current session
-source <(helm-env autocompletion bash)
+source <(helm-env completion bash)
 
 # bash — persistent
-echo 'source <(helm-env autocompletion bash)' >> ~/.bashrc
+echo 'source <(helm-env completion bash)' >> ~/.bashrc
 ```
 
 ```sh
 # zsh — current session (simplest)
-eval "$(helm-env autocompletion zsh)"
+eval "$(helm-env completion zsh)"
 
 # zsh — persistent via fpath + compinit
 mkdir -p ~/.zsh/completions
-helm-env autocompletion zsh > ~/.zsh/completions/_helm-env
+helm-env completion zsh > ~/.zsh/completions/_helm-env
 # Then add to ~/.zshrc (before any `compinit` call):
 #   fpath=(~/.zsh/completions $fpath)
 #   autoload -Uz compinit && compinit
@@ -726,13 +785,13 @@ helm-env autocompletion zsh > ~/.zsh/completions/_helm-env
 
 ```sh
 # fish — current session
-helm-env autocompletion fish | source
+helm-env completion fish | source
 
 # fish — persistent
-helm-env autocompletion fish > ~/.config/fish/completions/helm-env.fish
+helm-env completion fish > ~/.config/fish/completions/helm-env.fish
 ```
 
 ```powershell
 # powershell — persistent (append to your profile)
-helm-env autocompletion powershell >> $PROFILE
+helm-env completion --shell pwsh >> $PROFILE
 ```

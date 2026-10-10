@@ -439,5 +439,3 @@ func TestListRemoteWithMockClient(t *testing.T) {
 		}
 	})
 }
-
-

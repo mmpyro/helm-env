@@ -73,7 +73,7 @@ func IsExact(s string) bool {
 //   - Partial:     "3.14" → highest 3.14.x; "3" → highest 3.x.y
 //   - Aliases:     "latest", "latest-stable", "stable", "latest-installed"
 //   - Ranges:      "~3.14.0", "~3.14", "^3.14.0", ">=3.12.0,<4.0.0",
-//                  ">3.14.0", ">=3.14.0", "<4.0.0", "<=3.14.0", "=3.14.0"
+//     ">3.14.0", ">=3.14.0", "<4.0.0", "<=3.14.0", "=3.14.0"
 //
 // Partial and bare-version constraints never match pre-release candidates
 // (consistent with the usual semver / npm behaviour).  Explicit range

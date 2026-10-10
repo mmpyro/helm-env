@@ -7,6 +7,18 @@ import (
 	"github.com/user/helm-env/internal/config"
 )
 
+// LocalHelp prints help for the local command.
+func LocalHelp() {
+	fmt.Println(`Usage: helm-env local [<version>]
+
+With <version>, write it to .helm-version in the current directory. Without
+it, print the local version found by searching upward from the current
+directory.
+
+Flags:
+  -h, --help   Show this help message.`)
+}
+
 // Local manages the local (directory-level) helm version.
 // With a version argument: verifies it's installed and writes .helm-version.
 // Without argument: reads and prints the local version or errors.

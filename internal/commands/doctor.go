@@ -13,15 +13,22 @@ import (
 	"time"
 
 	"github.com/user/helm-env/internal/config"
+	"github.com/user/helm-env/internal/shim"
 )
 
 // DoctorHelp prints help for the doctor command.
 func DoctorHelp() {
-	fmt.Println(`Usage: helm-env doctor
+	fmt.Println(`Usage: helm-env doctor [--fix]
 
 Run a set of diagnostic checks against the current helm-env installation.
 Each check prints one line prefixed with [OK], [WARN], or [FAIL].  The
-command exits 0 if no FAIL is reported, 1 otherwise.`)
+command exits 0 if no FAIL is reported, 1 otherwise.
+
+Flags:
+  --fix        Repair what can be repaired before checking: create
+               $HELMENV_ROOT/versions, regenerate the shim and make installed
+               helm binaries executable.  Never touches PATH or shell rc files.
+  -h, --help   Show this help message.`)
 }
 
 // httpClient is the interface used by Doctor's network checks.  It is a
@@ -32,9 +39,44 @@ type httpClient interface {
 
 var doctorHTTPClient httpClient = &http.Client{Timeout: 3 * time.Second}
 
-// Doctor runs diagnostic checks and prints a report.
-func Doctor() error {
+// Doctor runs diagnostic checks and prints a report.  With fix, it first
+// applies the repairs described in DoctorHelp.
+func Doctor(fix bool) error {
+	if fix {
+		doctorFix(os.Stdout)
+	}
 	return doctorWithWriter(os.Stdout)
+}
+
+// doctorFix performs the --fix repairs and prints one [FIX] line per action.
+func doctorFix(w io.Writer) {
+	root, ok := config.GetHelmEnvRoot()
+	if !ok {
+		return
+	}
+	versionsDir := filepath.Join(root, "versions")
+	if _, err := os.Stat(versionsDir); err != nil {
+		if err := os.MkdirAll(versionsDir, 0o755); err == nil {
+			fmt.Fprintf(w, "[FIX] created %s\n", versionsDir)
+		}
+	}
+	if err := shim.GenerateShimScript(root); err == nil {
+		fmt.Fprintf(w, "[FIX] regenerated %s\n", filepath.Join(root, "shims", "helm"))
+	}
+	entries, err := os.ReadDir(versionsDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		binary := filepath.Join(versionsDir, e.Name(), "helm")
+		info, err := os.Stat(binary)
+		if err != nil || !info.Mode().IsRegular() || info.Mode()&0o111 != 0 {
+			continue
+		}
+		if err := os.Chmod(binary, 0o755); err == nil {
+			fmt.Fprintf(w, "[FIX] made %s executable\n", binary)
+		}
+	}
 }
 
 func doctorWithWriter(w io.Writer) error {
@@ -88,8 +130,8 @@ func doctorWithWriter(w io.Writer) error {
 
 	// 4. shim exists and is executable.
 	if root != "" {
-		shim := filepath.Join(root, "shims", "helm")
-		info, err := os.Stat(shim)
+		shimPath := filepath.Join(root, "shims", "helm")
+		info, err := os.Stat(shimPath)
 		switch {
 		case err != nil:
 			report("FAIL", "$HELMENV_ROOT/shims/helm exists", err.Error())
@@ -97,6 +139,10 @@ func doctorWithWriter(w io.Writer) error {
 			report("FAIL", "$HELMENV_ROOT/shims/helm is executable", "not executable")
 		default:
 			report("OK", "$HELMENV_ROOT/shims/helm exists and is executable", "")
+			if data, err := os.ReadFile(shimPath); err == nil && string(data) != shim.ShimScript(root) {
+				report("FAIL", "$HELMENV_ROOT/shims/helm is up to date",
+					"differs from generator output; run 'helm-env doctor --fix'")
+			}
 		}
 	}
 

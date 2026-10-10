@@ -8,6 +8,17 @@ import (
 	"github.com/user/helm-env/internal/config"
 )
 
+// GlobalHelp prints help for the global command.
+func GlobalHelp() {
+	fmt.Println(`Usage: helm-env global [<version>]
+
+With <version>, write it to $HELMENV_ROOT/version. Without it, print the
+global version.
+
+Flags:
+  -h, --help   Show this help message.`)
+}
+
 // Global manages the global helm version.
 // With a version argument: verifies it's installed and writes $HELMENV_ROOT/version.
 // Without argument: reads and prints the global version or errors.

@@ -7,6 +7,20 @@ import (
 	"github.com/user/helm-env/internal/config"
 )
 
+// ShellHelp prints help for the shell command.
+func ShellHelp() {
+	fmt.Println(`Usage: helm-env shell [<version>]
+
+With <version>, print "export HELMENV_VERSION=<version>" for the shell
+function installed by "helm-env init" to evaluate. Without it, print the
+current shell version.
+
+The shell version takes precedence over local and global versions.
+
+Flags:
+  -h, --help   Show this help message.`)
+}
+
 // Shell manages the shell-level helm version.
 // With a version argument: verifies it's installed and outputs export command.
 // Without argument: prints the current shell version or errors.

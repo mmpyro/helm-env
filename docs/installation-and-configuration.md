@@ -26,7 +26,7 @@ No existing `helm` installation is required; `helm-env` manages the `helm` binar
 
 ### Option A: Install a prebuilt binary (recommended)
 
-1. Download the binary for your platform from the project's GitHub tag v1.0.0.
+1. Download the binary for your platform from the project's [GitHub releases](https://github.com/mmpyro/helm-env/releases).
 2. Make it executable and move it into a directory on your `PATH`.
 
 Example (Linux x86_64):
@@ -84,6 +84,12 @@ What this does:
 - Prepends `$HELMENV_ROOT/shims` to your `PATH` so `helm` resolves to the shim.
 - Defines an `helm-env` shell function that enables `helm-env shell` to affect the current shell environment.
 
+Optionally, enable shell completion (`bash`, `zsh`, `fish` or `powershell`; see the [CLI reference](cli-reference.md#completion)):
+
+```sh
+eval "$(helm-env completion zsh)"
+```
+
 ### 3) Install an `helm` version
 
 ```sh
@@ -117,6 +123,24 @@ Pick one of:
   ```sh
   helm-env shell 3.14.0
   ```
+
+## Environment variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `HELMENV_ROOT` | **Required.** Where versions, shims, the global version file and the cache live. | none |
+| `HELMENV_VERSION` | Shell-level version (highest priority). Usually set by `helm-env shell`. | unset |
+| `HELMENV_AUTO_INSTALL` | When truthy (`1`, `true`, `yes`, `on`, case-insensitive), missing versions are installed automatically by the shim, `helm-env resolve` and `helm-env exec`. `exec --no-auto` overrides it per call. | unset (disabled) |
+| `HELMENV_CACHE_TTL` | Freshness of the release-list cache, as a Go duration (`30m`, `24h`, `0s` disables). See [caching](caching.md). | `1h` |
+| `SHELL` | Used by `helm-env completion` to pick a shell when none is given. | from your login shell |
+
+Example: install whatever `.helm-version` asks for on first use.
+
+```sh
+export HELMENV_AUTO_INSTALL=1
+cd my-chart    # contains .helm-version with "~3.14"
+helm version   # installs the newest 3.14.x on first run, then runs it
+```
 
 ## How configuration is discovered/loaded
 
@@ -175,7 +199,7 @@ helm-env install <X>
 
 ### GitHub API rate limit exceeded
 
-Some commands query GitHub tag v1.0.0. If GitHub returns `403`, `helm-env` reports a rate limit error.
+Some commands query the GitHub releases API. If GitHub returns `403`, `helm-env` reports a rate limit error.
 
 Fixes:
 

@@ -95,7 +95,20 @@ func defaultInstaller(client *github.Client, version string, silent bool) error 
 // Callers inject the github client and stderr writer so this stays testable
 // without reaching for package globals.
 func autoInstallIfEnabledWith(mode AutoInstallMode, client *github.Client, stderr io.Writer) (string, error) {
-	v, err := config.ResolveConcreteVersion()
+	return autoInstallSpecWith("", mode, client, stderr)
+}
+
+// autoInstallSpecWith is autoInstallIfEnabledWith for an explicit spec.  An
+// empty spec means "the active spec" (shell > local > global); otherwise the
+// spec is matched via config.ResolveSpec and the configuration is ignored.
+func autoInstallSpecWith(spec string, mode AutoInstallMode, client *github.Client, stderr io.Writer) (string, error) {
+	var v string
+	var err error
+	if spec == "" {
+		v, err = config.ResolveConcreteVersion()
+	} else {
+		v, err = config.ResolveSpec(spec)
+	}
 	if err == nil {
 		return v, nil
 	}
