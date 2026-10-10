@@ -4,6 +4,11 @@
 
 It installs multiple `helm` versions under a single root directory, generates a `helm` shim, and selects the correct `helm` binary at runtime based on your configured version.
 
+!!! tip "Where to go next"
+    - New here? Start with [Installation and configuration](installation-and-configuration.md).
+    - Looking up a flag or command? See the [CLI reference](cli-reference.md).
+    - Curious how `list-remote` / `latest` stay fast and offline-friendly? Read the [caching strategy](caching.md).
+
 ## Guides
 
 - [Installation and configuration](installation-and-configuration.md)
@@ -24,13 +29,13 @@ If no version is configured, the shim fails with an actionable error message.
 
 By default, `HELMENV_ROOT` is set to `~/.helmenv`.
 
-```text
-$HELMENV_ROOT/
-├── versions/
-│   ├── <helm-version>/
-│   │   └── helm
-│   └── ...
-├── shims/
-│   └── helm
-└── version
+```mermaid
+flowchart TD
+    ROOT["$HELMENV_ROOT"]
+    ROOT --> VERSIONS["versions/"]
+    ROOT --> SHIMS["shims/"]
+    ROOT --> VFILE["version<br/><small>global version file</small>"]
+    VERSIONS --> V1["3.14.0/<br/><small>one directory per installed version</small>"]
+    V1 --> BIN["helm<br/><small>installed binary</small>"]
+    SHIMS --> SHIM["helm<br/><small>auto-generated shim</small>"]
 ```

@@ -24,34 +24,36 @@ No existing `helm` installation is required; `helm-env` manages the `helm` binar
 
 ## Install methods
 
-### Option A: Install a prebuilt binary (recommended)
+=== "Prebuilt binary (recommended)"
 
-1. Download the binary for your platform from the project's [GitHub releases](https://github.com/mmpyro/helm-env/releases).
-2. Make it executable and move it into a directory on your `PATH`.
+    1. Download the binary for your platform from the project's [GitHub releases](https://github.com/mmpyro/helm-env/releases).
+    2. Make it executable and move it into a directory on your `PATH`.
 
-Example (Linux x86_64):
+    Example (Linux x86_64):
 
-```sh
-curl -L -o helm-env https://github.com/mmpyro/helm-env/releases/download/v1.0.0/helm-env-linux-amd64
-chmod +x helm-env
-sudo mv helm-env /usr/local/bin/helm-env
-```
+    ```sh
+    curl -L -o helm-env https://github.com/mmpyro/helm-env/releases/download/v1.0.0/helm-env-linux-amd64
+    chmod +x helm-env
+    sudo mv helm-env /usr/local/bin/helm-env
+    ```
 
-### Option B: Build from source
+=== "Build from source"
 
-```sh
-git clone https://github.com/mmpyro/helm-env.git
-cd helm-env
-make build
-```
+    ```sh
+    git clone https://github.com/mmpyro/helm-env.git
+    cd helm-env
+    make build
+    ```
 
-The binary will be available at `build/helm-env`.
+    The binary will be available at `build/helm-env`.
 
-### Option C: Cross-compile for all supported platforms
+=== "Cross-compile for all platforms"
 
-```sh
-make build-all
-```
+    ```sh
+    make build-all
+    ```
+
+    Produces binaries for `linux/amd64`, `linux/arm64`, `darwin/amd64`, and `darwin/arm64`.
 
 ## Initial setup
 
@@ -73,13 +75,50 @@ Required permissions:
 
 ### 2) Initialize shell integration
 
-Add this after the `HELMENV_ROOT` export.
-Add this to your shell profile (e.g. `~/.bashrc` or `~/.zshrc`):
-```sh
-eval "$(helm-env init)"
-```
+Add the following to your shell profile, after the `HELMENV_ROOT` export. Pick the tab for your shell:
 
-What this does:
+=== "Bash"
+
+    Add to `~/.bashrc`:
+
+    ```sh
+    # helm-env setup
+    export HELMENV_ROOT="$HOME/.helmenv"
+    eval "$(helm-env init)"
+    source <(helm-env autocompletion bash)
+    ```
+
+=== "Zsh"
+
+    Add to `~/.zshrc`:
+
+    ```sh
+    # helm-env setup
+    export HELMENV_ROOT="$HOME/.helmenv"
+    eval "$(helm-env init)"
+    eval "$(helm-env autocompletion zsh)"
+    ```
+
+=== "Fish"
+
+    Add to `~/.config/fish/config.fish`:
+
+    ```fish
+    # helm-env setup
+    set -gx HELMENV_ROOT "$HOME/.helmenv"
+    helm-env init | source
+    helm-env autocompletion fish | source
+    ```
+
+=== "PowerShell"
+
+    Append the completion script to your profile once:
+
+    ```powershell
+    helm-env autocompletion powershell >> $PROFILE
+    ```
+
+What `eval "$(helm-env init)"` does:
 
 - Prepends `$HELMENV_ROOT/shims` to your `PATH` so `helm` resolves to the shim.
 - Defines an `helm-env` shell function that enables `helm-env shell` to affect the current shell environment.
@@ -163,45 +202,38 @@ Symptoms:
 
 - `helm-env init` prints instructions and exits with an error.
 
-Fix:
+!!! note "Fix"
+    Export `HELMENV_ROOT` and re-run shell integration:
 
-```sh
-export HELMENV_ROOT="$HOME/.helmenv"
-```
-
-Then ensure you also have:
-
-```sh
-eval "$(helm-env init)"
-```
+    ```sh
+    export HELMENV_ROOT="$HOME/.helmenv"
+    eval "$(helm-env init)"
+    ```
 
 ### `helm-env: no helm version configured`
 
 This is emitted by the `helm` shim when none of the version sources are configured.
 
-Fix (choose one):
-
-```sh
-helm-env global 3.14.0
-helm-env local 3.14.0
-helm-env shell 3.14.0
-```
+!!! note "Fix (choose one)"
+    ```sh
+    helm-env global 3.14.0
+    helm-env local 3.14.0
+    helm-env shell 3.14.0
+    ```
 
 ### `version <X> not installed`
 
 `helm-env` validates that a version is installed before setting it via `global`, `local`, or `shell`, and the shim also verifies the installed binary is present.
 
-Fix:
-
-```sh
-helm-env install <X>
-```
+!!! note "Fix"
+    ```sh
+    helm-env install <X>
+    ```
 
 ### GitHub API rate limit exceeded
 
 Some commands query the GitHub releases API. If GitHub returns `403`, `helm-env` reports a rate limit error.
 
-Fixes:
-
-- Wait and retry later.
-- If running in CI or heavily automated use, consider reducing frequency of `list-remote` / `latest` calls.
+!!! note "Fix"
+    - Wait and retry later.
+    - If running in CI or heavily automated use, consider reducing frequency of `list-remote` / `latest` calls.
