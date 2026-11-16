@@ -1,13 +1,13 @@
-# helm-env Documentation
+# helm-env documentation
 
 `helm-env` is a version manager for the [`helm`](https://helm.sh) CLI.
 
-It installs multiple `helm` versions under a single root directory, generates a `helm` shim, and selects the correct `helm` binary at runtime based on your configured version.
+It installs multiple `helm` versions under a single root directory and generates a `helm` shim. At runtime, it selects the correct `helm` binary for the version that you configured.
 
 !!! tip "Where to go next"
-    - New here? Start with [Installation and configuration](installation-and-configuration.md).
-    - Looking up a flag or command? See the [CLI reference](cli-reference.md).
-    - Curious how `list-remote` / `latest` stay fast and offline-friendly? Read the [caching strategy](caching.md).
+    - If you are new to `helm-env`, start with [Installation and configuration](installation-and-configuration.md).
+    - To look up a flag or command, see the [CLI reference](cli-reference.md).
+    - To learn how `list-remote` and `latest` stay fast and work offline, read about the [caching strategy](caching.md).
 
 ## Guides
 
@@ -17,17 +17,17 @@ It installs multiple `helm` versions under a single root directory, generates a 
 
 ## How version selection works
 
-When you run `helm ...`, the shim selects a version using the following priority:
+When you run `helm ...`, the shim selects a version in this order of priority:
 
-1. **Shell version** via `HELMENV_VERSION` (typically set by `helm-env shell` after `eval "$(helm-env init)"`).
-2. **Local version** via a `.helm-version` file in the current directory or any parent directory.
-3. **Global version** via `$HELMENV_ROOT/version`.
+1. Shell version: `HELMENV_VERSION`. Typically, `helm-env shell` sets it after `eval "$(helm-env init)"`.
+2. Local version: a `.helm-version` file in the current directory or any parent directory.
+3. Global version: `$HELMENV_ROOT/version`.
 
-If no version is configured, the shim fails with an actionable error message.
+If you do not configure a version, the shim fails with an actionable error message.
 
 ## Project layout under `HELMENV_ROOT`
 
-By default, `HELMENV_ROOT` is set to `~/.helmenv`.
+By default, `HELMENV_ROOT` is `~/.helmenv`.
 
 ```mermaid
 flowchart TD

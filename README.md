@@ -2,7 +2,7 @@
 
 A version manager for [helm](https://helm.sh), similar to [tfenv](https://github.com/tfutils/tfenv) and [pyenv](https://github.com/pyenv/pyenv).
 
-Manage multiple versions of the `helm` CLI and switch between them seamlessly.
+Manage multiple versions of the `helm` CLI and switch between them.
 
 ## Documentation
 
@@ -13,7 +13,7 @@ Manage multiple versions of the `helm` CLI and switch between them seamlessly.
 
 ## Downloads (latest tag v1.2.0)
 
-Latest tag v1.2.0: **v1.2.0** (tag: `v1.2.0`).
+The latest tag is **v1.2.0** (tag: `v1.2.0`).
 
 | Platform | Asset | Download |
 |---|---|---|
@@ -25,15 +25,15 @@ Latest tag v1.2.0: **v1.2.0** (tag: `v1.2.0`).
 ## Features
 
 - Install and manage multiple `helm` CLI versions
-- Automatic version switching based on project directory (`.helm-version`)
-- Shell-level, local (directory), and global version configuration
+- Switch versions automatically per project directory (`.helm-version`)
+- Set the version per shell, per directory (local) or globally
 - Version priority: shell > local > global
-- Auto-detection of OS and architecture for binary downloads
-- Shim-based transparent proxying of `helm` commands
+- Detect the OS and architecture automatically for binary downloads
+- Forward `helm` commands transparently through a shim
 
 ## Installation
 
-### From Source
+### From source
 
 ```sh
 git clone https://github.com/mmpyro/helm-env.git
@@ -41,29 +41,29 @@ cd helm-env
 make build
 ```
 
-The binary will be at `build/helm-env`. Move it to a directory in your `PATH`:
+`make build` writes the binary to `build/helm-env`. Move it to a directory in your `PATH`:
 
 ```sh
 sudo mv build/helm-env /usr/local/bin/
 ```
 
-### Cross-compile for All Platforms
+### Cross-compile for all platforms
 
 ```sh
 make build-all
 ```
 
-This produces binaries for:
+This command builds binaries for:
 - `linux/amd64`
 - `linux/arm64`
 - `darwin/amd64`
 - `darwin/arm64`
 
-## Quick Start
+## Quick start
 
 ### 1. Set up HELMENV_ROOT
 
-Add to your `~/.bashrc` or `~/.zshrc`:
+Add this line to your `~/.bashrc` or `~/.zshrc`:
 
 ```sh
 export HELMENV_ROOT="$HOME/.helmenv"
@@ -83,9 +83,9 @@ Add the following to your `~/.bashrc` or `~/.zshrc` (after the `HELMENV_ROOT` ex
 eval "$(helm-env init)"
 ```
 
-This sets up:
-- A `helm-env` shell function for `helm-env shell` support
-- PATH prepend for the helm shim
+This line adds:
+- A `helm-env` shell function, so that `helm-env shell` works
+- The helm shim directory at the start of your PATH
 
 ### 3. Install a helm version
 
@@ -116,9 +116,9 @@ helm-env shell 3.14.0
 helm version
 ```
 
-The shim automatically resolves and uses the correct version.
+The shim resolves the correct version automatically and uses it.
 
-## Command Reference
+## Command reference
 
 Full reference: [docs/cli-reference.md](docs/cli-reference.md)
 
@@ -133,14 +133,14 @@ Full reference: [docs/cli-reference.md](docs/cli-reference.md)
 | `helm-env status` | Show current environment status |
 | `helm-env install [VERSION]` | Install a specific version (or latest) |
 | `helm-env uninstall VERSION` | Uninstall a specific version |
-| `helm-env exec [--auto\|--no-auto] SPEC [--] ARGS...` | Run helm with a specific version; exits with helm's exit code |
+| `helm-env exec [--auto\|--no-auto] SPEC [--] ARGS...` | Run helm with a specific version and exit with helm's exit code |
 | `helm-env shell [VERSION]` | Set/show shell version (`HELMENV_VERSION`) |
 | `helm-env local [VERSION]` | Set/show local version (`.helm-version`) |
 | `helm-env global [VERSION]` | Set/show global version (`$HELMENV_ROOT/version`) |
 | `helm-env which [--explain]` | Print path to active helm binary (optionally with resolution trace) |
 | `helm-env resolve [SPEC] [--install] [-s]` | Resolve a spec (default: the active one) to a concrete version |
 | `helm-env prune [--keep-last N] [--older-than DUR] [--dry-run] [--yes]` | Remove old installed versions (dry run unless `--yes`) |
-| `helm-env doctor [--fix]` | Run diagnostics; `--fix` regenerates the shim |
+| `helm-env doctor [--fix]` | Run diagnostics. `--fix` regenerates the shim |
 | `helm-env completion [SHELL] [--shell SHELL]` | Print a completion script (bash, zsh, fish, powershell/pwsh) |
 | `helm-env upgrade` | Upgrade helm-env itself to the latest GitHub release |
 | `helm-env version` | Print helm-env version |
@@ -152,35 +152,35 @@ Every command accepts `-h`/`--help`.
 Every version slot (`HELMENV_VERSION`, `.helm-version`, `$HELMENV_ROOT/version`, and every CLI `<version>` argument) accepts:
 
 - Exact: `3.14.0`
-- Partial: `3.14` → highest `3.14.x`; `3` → highest `3.x.y`
-- Aliases: `latest` / `latest-stable` / `stable` (highest stable), `latest-installed` (highest installed)
+- Partial: `3.14` (highest `3.14.x`) or `3` (highest `3.x.y`)
+- Aliases: `latest`, `latest-stable` or `stable` (highest stable version), and `latest-installed` (highest installed version)
 - Tilde: `~3.14.0`, `~3.14`
 - Caret: `^3.14.0`
 - Comparators: `>3.14.0`, `>=3.14.0`, `<4.0.0`, `<=3.14.0`, `=3.14.0`
 - AND-combined ranges: `>=3.12.0,<4.0.0`
 
-`install` and the `latest*` aliases resolve against the remote release list; every other command resolves against installed versions on disk.
+`install` and the `latest*` aliases resolve against the remote release list. Every other command resolves against the installed versions on disk.
 
 ## Auto-install
 
-Set `HELMENV_AUTO_INSTALL` to a truthy value (`1`, `true`, `yes`, `on`) and `helm-env` will transparently install missing helm versions when they are first resolved (by the shim, `resolve` or `exec`). `helm-env resolve --install` does the same for one call. Per-invocation overrides for `helm-env exec`:
+If you set `HELMENV_AUTO_INSTALL` to a truthy value (`1`, `true`, `yes`, `on`), `helm-env` installs missing helm versions transparently. It installs a version the first time the shim, `resolve` or `exec` resolves it. `helm-env resolve --install` does the same for one call. `helm-env exec` has two flags that override the setting for one call:
 
-- `--auto` → force auto-install for this call.
-- `--no-auto` → disable auto-install for this call even if the env var is set.
+- `--auto` forces auto-install.
+- `--no-auto` disables auto-install, even if the environment variable is set.
 
-Auto-install is **disabled** by default: a silent fallback is otherwise dangerous.
+By default, auto-install is **disabled**, because a silent fallback is dangerous.
 
-## Version Priority
+## Version priority
 
-When `helm` is invoked, the version is resolved in this order:
+When you run `helm`, the shim resolves the version in this order:
 
-1. **Shell** — `HELMENV_VERSION` environment variable (set via `helm-env shell`)
-2. **Local** — `.helm-version` file in the current or parent directories (set via `helm-env local`)
-3. **Global** — `$HELMENV_ROOT/version` file (set via `helm-env global`)
+1. Shell: the `HELMENV_VERSION` environment variable (set with `helm-env shell`)
+2. Local: the `.helm-version` file in the current directory or a parent directory (set with `helm-env local`)
+3. Global: the `$HELMENV_ROOT/version` file (set with `helm-env global`)
 
-If no version is configured at any level, the command fails with an informative error.
+If you do not configure a version at any level, the command fails with an informative error.
 
-## Shell Setup
+## Shell setup
 
 ### Bash
 
@@ -223,17 +223,17 @@ Append the completion script to your profile once:
 helm-env completion powershell >> $PROFILE
 ```
 
-`helm-env autocompletion` is a deprecated alias for `helm-env completion`; it still works but prints a deprecation warning to stderr.
+`helm-env autocompletion` is a deprecated alias for `helm-env completion`. It still works, but it prints a deprecation warning to stderr.
 
 ## Release source
 
-`helm-env` discovers available versions from the [`helm/helm`](https://github.com/helm/helm) GitHub repository, and downloads the corresponding binary tarballs from <https://get.helm.sh/>, mirroring Helm's official install convention.
+`helm-env` gets the list of available versions from the [`helm/helm`](https://github.com/helm/helm) GitHub repository. It downloads the matching binary tarballs from <https://get.helm.sh/>. This follows Helm's official install convention.
 
 ## Caching
 
-`helm-env` uses a three-layer caching strategy to keep `list-remote` and `latest` fast and reliable. For more details on how it works and how to configure it, see [docs/caching.md](docs/caching.md).
+`helm-env` uses a three-layer caching strategy to keep `list-remote` and `latest` fast and reliable. For details on how the cache works and how to configure it, see [docs/caching.md](docs/caching.md).
 
-## Directory Structure
+## Directory structure
 
 ```
 $HELMENV_ROOT/
@@ -249,13 +249,13 @@ $HELMENV_ROOT/
 
 ## Development
 
-### Run Tests
+### Run tests
 
 ```sh
 make test
 ```
 
-### Run Docker Integration Tests
+### Run Docker integration tests
 
 ```sh
 make test-docker
